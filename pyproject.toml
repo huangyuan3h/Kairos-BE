@@ -8,39 +8,12 @@ authors = [
 requires-python = "==3.11.*"
 readme = "README.md"
 license = "MIT"
-# List project dependencies here
-dependencies = [
-    "akshare>=1.16.81", # Dependency added via 'uv add'
-    # Add other dependencies like 'boto3' here if needed
-    # "boto3",
-]
+[tool.uv.workspace]
+members = ["functions", "core"]
 
-# Build system configuration required by 'uv build' / SST
-[build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
-
-# --- Setuptools Configuration ---
-# [tool.setuptools] # This line might not even be needed if only find is present
-# Removed the explicit packages list as it conflicts with using find.where
-# packages = ["functions", "core"]
-
-[tool.setuptools.packages.find]
-# Tell setuptools where to look for packages, implicitly discovering 'functions' and 'core'
-where = ["functions", "core/src"]
-# Optional: exclude tests if they existed
-# exclude = ["tests*"]
-
-# --- Optional uv tool configurations ---
-
-# Optional: sources can be defined here if needed
-# [tool.uv.sources]
-# # Add custom package sources here if needed, e.g., a private PyPI
-# # my-private-pypi = { url = \"https://my-private-pypi.org/simple/\" }
-
-# Optional: development dependencies can be defined here
-# [tool.uv.dev-dependencies]
-# # Add development dependencies here
-# # pytest = \"*\"
-
-# Cleaned up previous workspace/commented sections 
+# Add the sources section to define how local dependencies are resolved
+[tool.uv.sources]
+# Tell uv that 'core' should be treated as a workspace dependency source
+core = { workspace = true }
+# Add other custom sources below if needed
+# my-private-pypi = { url = \"https://my-private-pypi.org/simple/\" }

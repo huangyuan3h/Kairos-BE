@@ -6,13 +6,16 @@ export default $config({
       name: "kairos-be",
       removal: input?.stage === "production" ? "retain" : "remove",
       home: "aws",
+      providers: {
+        aws: true,
+      },
     };
   },
   async run() {
     const myFunction = new sst.aws.Function("MyFunction", {
       url: true,
       runtime: "python3.11",
-      handler: "functions/handler.main",
+      handler: "functions/src/functions/handler.main",
     });
 
     return {
