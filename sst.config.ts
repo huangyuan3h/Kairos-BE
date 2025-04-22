@@ -1,15 +1,22 @@
-import { SSTConfig, App, StackContext } from "sst";
+/// <reference path="./.sst/platform/config.d.ts" />
 
-export default {
-  config(_input: any) {
+export default $config({
+  app(input) {
     return {
       name: "kairos-be",
-      region: "us-east-1",
+      removal: input?.stage === "production" ? "retain" : "remove",
+      home: "aws",
     };
   },
-  stacks(app: App) {
-    app.stack(function DefaultStack({ stack }: StackContext) {
-      stack.addOutputs({});
+  async run() {
+    const myFunction = new sst.aws.Function("MyFunction", {
+      url: true,
+      runtime: "python3.11",
+      handler: "functions/handler.main",
     });
+
+    return {
+      FunctionUrl: myFunction.url,
+    };
   },
-} satisfies SSTConfig;
+});
