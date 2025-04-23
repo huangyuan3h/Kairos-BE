@@ -6,7 +6,7 @@ Backend service for Kairos, synchronizing data using Akshare and AWS DynamoDB, d
 
 Before you begin, ensure you have the following installed:
 
-- **Python:** Version 3.11.x ([Download Python](https://www.python.org/downloads/))
+- **Python:** Version 3.12.x ([Download Python](https://www.python.org/downloads/))
 - **Node.js:** Version 22.x (LTS) or higher ([Download Node.js](https://nodejs.org/) or use a version manager like [nvm](https://github.com/nvm-sh/nvm))
 - **uv:** A fast Python package installer and resolver. ([Installation Guide](https://docs.astral.sh/uv/getting-started/installation/))
 - **Bun:** A fast JavaScript runtime, bundler, test runner, and package manager. ([Installation Guide](https://bun.sh/docs/installation))
@@ -22,10 +22,10 @@ Before you begin, ensure you have the following installed:
 
 2.  **Set up Python Virtual Environment:**
 
-    - Create the virtual environment using `uv` and Python 3.11:
+    - Create the virtual environment using `uv` and Python 3.12:
 
     ```bash
-    uv venv -p 3.11 .venv
+    uv venv -p 3.12 .venv
     ```
 
     - Activate the virtual environment:
@@ -55,12 +55,20 @@ Before you begin, ensure you have the following installed:
     This will create a `bun.lockb` file locking the dependency versions.
 
 4.  **Install Python Dependencies (Workspace Setup):**
+
     - This project uses `uv` workspaces (`functions` and `core`). Dependencies are defined in `functions/pyproject.toml` and `core/pyproject.toml`.
     - **(You need to create these `pyproject.toml` files first!)**
     - Once the workspace `pyproject.toml` files are defined, install all workspace dependencies (ensure the Python virtual environment `.venv` is active):
+
     ```bash
     # (Run from the project root directory)
     uv pip sync
+    ```
+
+5.  **Install packages**  
+    install package into sub workspaces:
+    ```bash
+    uv pip install <package-name> --project core
     ```
 
 ## Project Structure

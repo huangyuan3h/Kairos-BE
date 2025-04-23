@@ -2,18 +2,12 @@
 name = "kairos-be"
 version = "0.1.0"
 description = "Data synchronization with Akshare and AWS DynamoDB"
-authors = [
-    # {name = "<your_name_here>", email = "<your_email_here>" },
-]
-requires-python = "==3.11.*"
+requires-python = "==3.12.*"
 readme = "README.md"
 license = "MIT"
 [tool.uv.workspace]
 members = ["functions", "core"]
 
-# Add the sources section to define how local dependencies are resolved
 [tool.uv.sources]
-# Tell uv that 'core' should be treated as a workspace dependency source
 core = { workspace = true }
-# Add other custom sources below if needed
-# my-private-pypi = { url = \"https://my-private-pypi.org/simple/\" }
+

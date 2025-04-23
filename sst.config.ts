@@ -14,7 +14,7 @@ export default $config({
   async run() {
     const myFunction = new sst.aws.Function("MyFunction", {
       url: true,
-      runtime: "python3.11",
+      runtime: "python3.12",
       handler: "functions/src/functions/handler.main",
     });
 

@@ -2,7 +2,10 @@
 name = "core"
 version = "0.1.0"
 description = "Add your description here"
-requires-python = "==3.11.*"
+requires-python = "==3.12.*"
+dependencies = [
+    "akshare==1.16.81"
+]
 
 [build-system]
 requires = ["hatchling"]
