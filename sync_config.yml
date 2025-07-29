@@ -1,0 +1,22 @@
+# This file defines all the data synchronization jobs for Kairos.
+# SST will read this file to dynamically create the necessary Cron jobs and permissions.
+
+jobs:
+  - name: "sync-securities"
+    description: "Sync securities data for all supported markets."
+    # Run at 22:00 UTC on the 1st of every month (6 AM Beijing time on the 2nd).
+    schedule: "cron(0 22 1 * ? *)"
+    # The python function to call. Format: path/to/file.handler
+    handler: "functions/src/functions/securities_sync_handler.sync_securities_list"
+    # No parameters needed - configuration is centralized in core/config/settings.py
+
+  # --- Future examples ---
+  # - name: "sync-us-stock-list"
+  #   description: "Sync the list of all US stocks."
+  #   schedule: "cron(0 23 1 * ? *)"
+  #   handler: "functions/src/functions/securities_sync_handler.sync_securities_list"
+  #   parameters:
+  #     DATA_SOURCE: "some_other_api"
+  #     API_ENDPOINT: "/v1/us-stocks"
+  #     MARKET: "US"
+  #     TYPE: "STOCK"

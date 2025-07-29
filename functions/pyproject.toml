@@ -1,8 +1,11 @@
 [project]
 name = "functions"
 version = "0.1.0"
-description = "Lambda function handlers"
-dependencies = ["core"]
+description = "Lambda function handlers for Kairos data sync"
+dependencies = [
+    "core",
+    "boto3>=1.34.0"
+]
 requires-python = "==3.12.*"
 
 [build-system]
