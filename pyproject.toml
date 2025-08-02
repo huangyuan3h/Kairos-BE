@@ -1,25 +1,4 @@
-[project]
-name = "kairos-be"
-version = "0.1.0"
-description = "Data synchronization with Akshare and AWS DynamoDB"
-authors = [
-    # {name = "<your_name_here>", email = "<your_email_here>" },
-]
-requires-python = "==3.11.*"
-readme = "README.md"
-license = { text = "MIT" }
+[tool.uv.workspace]
+members = ["functions"]
 
-[tool.uv]
-workspace = true
-
-[tool.uv.sources]
-# Add custom package sources here if needed, e.g., a private PyPI
-# my-private-pypi = { url = "https://my-private-pypi.org/simple/" }
-
-# You can add common development dependencies here later
-# [tool.uv.dev-dependencies]
-# pytest = "*"
-
-# --- Workspace Packages ---
-# Define your individual packages (functions, core) below.
-# Each package will have its own pyproject.toml later. 
+# 根目录只作为工作区管理，不包含构建配置

@@ -6,6 +6,8 @@
 
 - **项目背景**: [PROJECT_CONTEXT.md](./PROJECT_CONTEXT.md) - 完整的技术架构和业务场景
 - **任务清单**: [TODO.md](./TODO.md) - 开发任务拆分和进度跟踪
+- **定时任务框架**: [框架概述](./development/framework-overview.md) - 可配置的定时任务框架
+- **框架部署**: [部署指南](./development/framework-deployment.md) - 快速部署和验证
 - **业务模块**: [业务模块](./business/modules-overview.md) - 两大核心模块介绍
 
 ## 📚 文档分类
@@ -33,6 +35,10 @@
 
 ### 🔧 开发指南
 
+- [定时任务框架概述](./development/framework-overview.md) - 可配置的定时任务框架
+- [框架部署指南](./development/framework-deployment.md) - 框架部署和验证
+- [快速部署测试](./development/quick-deployment-test.md) - 生产环境快速验证
+- [数据爬取架构](./development/data-crawler-architecture.md) - 数据爬取系统架构
 - [开发环境](./development/environment-setup.md) - 本地开发环境配置
 - [API 设计](./development/api-design.md) - REST 和 GraphQL 接口设计
 - [认证授权](./development/authentication.md) - 用户认证和权限管理
