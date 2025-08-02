@@ -19,22 +19,20 @@ export default $config({
       primaryIndex: { hashKey: "pk", rangeKey: "sk" },
     });
 
-    // Python Lambda function
-    const func = new sst.aws.Function("PythonCrawler", {
-      handler: "python_crawler.handler",
-      runtime: "python3.11",
-      code: "functions", // 指定代码目录
-      url: true,
-      link: [table],
-      environment: {
-        MARKET_DATA_TABLE: table.name,
+    // 添加 Cron job with Python function
+    new sst.aws.Cron("TestTaskCron", {
+      schedule: "rate(2 minutes)",
+      function: {
+        handler: "functions.src.functions.python_crawler.handler",
+
+        runtime: "python3.11",
+        url: true,
+        link: [table],
+        environment: {
+          MARKET_DATA_TABLE: table.name,
+          PYTHONPATH: ".",
+        },
       },
     });
-
-    return {
-      tableName: table.name,
-      functionName: func.name,
-      functionUrl: func.url,
-    };
   },
 });

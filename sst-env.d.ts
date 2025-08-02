@@ -5,15 +5,6 @@
 
 declare module "sst" {
   export interface Resource {
-    "MarketData": {
-      "name": string
-      "type": "sst.aws.Dynamo"
-    }
-    "PythonCrawler": {
-      "name": string
-      "type": "sst.aws.Function"
-      "url": string
-    }
   }
 }
 /// <reference path="sst-env.d.ts" />

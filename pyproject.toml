@@ -1,4 +1,2 @@
 [tool.uv.workspace]
 members = ["functions"]
-
-# 根目录只作为工作区管理，不包含构建配置

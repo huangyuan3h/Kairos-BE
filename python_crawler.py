@@ -59,16 +59,22 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     Main Lambda handler function
     """
     try:
-        logger.info(f"Received event: {json.dumps(event)}")
+        # Handle different event sources (API Gateway/Function URL vs. EventBridge)
+        if isinstance(event.get('body'), str):
+            payload = json.loads(event['body'])
+        else:
+            payload = event
+
+        logger.info(f"Received payload: {json.dumps(payload)}")
         
         # Extract task configuration from event
-        task_name = event.get('taskName', 'unknown')
-        task_type = event.get('taskType', 'simple_task_1')
+        task_name = payload.get('taskName', 'unknown')
+        task_type = payload.get('taskType', 'simple_task_1')
         
         logger.info(f"Executing task: {task_name} (type: {task_type})")
         
         # Execute task
-        result = simple_task_1(event)
+        result = simple_task_1(payload)
         
         # Save task result
         save_task_result(task_name, result)
@@ -88,4 +94,4 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return {
             'statusCode': 500,
             'body': json.dumps({'error': str(e)})
-        } 
+        }
