@@ -19,20 +19,22 @@ export default $config({
       primaryIndex: { hashKey: "pk", rangeKey: "sk" },
     });
 
+    const linkableValue = new sst.Linkable("MyLinkableValue", {
+      properties: {
+        foo: "Hello World",
+      },
+    });
+    const fn = new sst.aws.Function("MyPythonFunction", {
+      handler: "functions/src/functions/api.handler",
+      runtime: "python3.11",
+      link: [linkableValue],
+      url: true,
+    });
+
     // 添加 Cron job with Python function
     new sst.aws.Cron("TestTaskCron", {
       schedule: "rate(2 minutes)",
-      function: {
-        handler: "functions.src.functions.python_crawler.handler",
-
-        runtime: "python3.11",
-        url: true,
-        link: [table],
-        environment: {
-          MARKET_DATA_TABLE: table.name,
-          PYTHONPATH: ".",
-        },
-      },
+      job: fn.url,
     });
   },
 });

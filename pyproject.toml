@@ -1,2 +1,12 @@
+[project]
+name = "aws-python"
+version = "0.1.0"
+description = "A SST app"
+dependencies = []
+requires-python = "==3.11.*"
+
 [tool.uv.workspace]
-members = ["functions"]
+members = ["functions", "core"]
+
+[tool.uv.sources]
+sst = { git = "https://github.com/sst/sst.git", subdirectory = "sdk/python", branch = "dev" }

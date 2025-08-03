@@ -14,6 +14,8 @@
 ### Phase 2: 核心功能开发 (预计 4 周)
 
 - [ ] **数据爬取模块**
+      llm 对https://github.com/sst/sst/tree/dev/examples/aws-python
+      python 的部署完全不擅长
 - [ ] **用户认证系统**
 - [ ] **基础 API 设计**
 - [ ] **AI 集成框架**
