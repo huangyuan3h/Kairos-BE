@@ -32,9 +32,9 @@ export default $config({
     });
 
     // 添加 Cron job with Python function
-    new sst.aws.Cron("TestTaskCron", {
-      schedule: "rate(2 minutes)",
-      job: fn.url,
-    });
+    // new sst.aws.Cron("TestTaskCron", {
+    //   schedule: "rate(2 minutes)",
+    //   job: fn.url,
+    // });
   },
 });
