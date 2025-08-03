@@ -13,11 +13,6 @@ declare module "sst" {
       "foo": string
       "type": "sst.sst.Linkable"
     }
-    "MyPythonFunction": {
-      "name": string
-      "type": "sst.aws.Function"
-      "url": string
-    }
   }
 }
 /// <reference path="sst-env.d.ts" />
