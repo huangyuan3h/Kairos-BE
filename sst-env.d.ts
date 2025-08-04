@@ -5,14 +5,6 @@
 
 declare module "sst" {
   export interface Resource {
-    "MarketData": {
-      "name": string
-      "type": "sst.aws.Dynamo"
-    }
-    "MyLinkableValue": {
-      "foo": string
-      "type": "sst.sst.Linkable"
-    }
   }
 }
 /// <reference path="sst-env.d.ts" />
