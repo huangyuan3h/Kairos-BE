@@ -10,29 +10,15 @@ export default $config({
     };
   },
   async run() {
-    // DynamoDB table
-    const table = new sst.aws.Dynamo("MarketData", {
-      fields: {
-        pk: "string",
-        sk: "string",
-      },
-      primaryIndex: { hashKey: "pk", rangeKey: "sk" },
-    });
+    // Dynamically import the infrastructure configuration
+    const { createInfrastructure } = await import("./deploy");
 
-    const linkableValue = new sst.Linkable("MyLinkableValue", {
-      properties: {
-        foo: "Hello World",
-      },
-    });
+    // Create all infrastructure resources using modular configuration
+    const infrastructure = createInfrastructure();
 
-    new sst.aws.Cron("TestTaskCron", {
-      schedule: "rate(2 minutes)",
-      function: {
-        handler: "functions/src/functions/api.handler",
-        runtime: "python3.11",
-        link: [linkableValue],
-        url: true,
-      },
-    });
+    // Export resources for potential use in other parts of the application
+    return {
+      infrastructure,
+    };
   },
 });

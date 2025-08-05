@@ -6,4 +6,8 @@ class Resource:
     class App:
         name: str
         stage: str
+    class MyFunction:
+        name: str
+        type: str
+        url: str
 
