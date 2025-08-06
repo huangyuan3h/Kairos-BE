@@ -201,3 +201,5 @@ bun.lockb
 *.swp
 *.swo
 *~
+
+.vscode/
