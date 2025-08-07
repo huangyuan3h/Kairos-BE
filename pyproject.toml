@@ -5,6 +5,10 @@ description = "A SST app"
 dependencies = []
 requires-python = "==3.11.*"
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [tool.uv.workspace]
 members = ["functions", "core"]
 
