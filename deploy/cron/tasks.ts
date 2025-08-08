@@ -12,11 +12,10 @@ export function createCronJobs(
     // Runs at 00:00 UTC on day 1 of every month
     schedule: "cron(0 0 1 * ? *)",
     function: {
+      // Root-level handler per SST aws-python example
       handler: "functions/src/functions/sync_market_data.handler",
       runtime: "python3.11",
-      // Link the DynamoDB table to grant IAM permissions
-      link: [database.marketDataTable, linkables.linkableValue],
-      // Provide the table name to the function
+      link: [database.marketDataTable],
       environment: {
         MARKET_DATA_TABLE: database.marketDataTable.name,
       },

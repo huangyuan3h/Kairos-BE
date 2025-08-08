@@ -1,5 +1,5 @@
 [project]
-name = "kairos-functions"
+name = "functions"
 version = "0.1.0"
 description = "Lambda functions for Kairos data crawling"
 authors = []
