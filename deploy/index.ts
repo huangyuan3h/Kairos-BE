@@ -22,8 +22,8 @@ export function createInfrastructure() {
   // const restApi = createRestApi(linkables);
   // const graphqlApi = createGraphQLApi(linkables);
 
-  // Create cron jobs
-  const cronJobs = createCronJobs(linkables);
+  // Create cron jobs (requires linkables & database)
+  const cronJobs = createCronJobs(linkables, database);
 
   return {
     linkables,
