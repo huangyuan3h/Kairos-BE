@@ -15,12 +15,14 @@ from .keys import (
 )
 from .repository import DynamoRepository
 from .exceptions import RepositoryError
+from .MarketData import MarketData
 
 __all__ = [
     "DynamoConfig",
     "get_dynamo_table",
     "DynamoRepository",
     "RepositoryError",
+    "MarketData",
     "make_pk_stock",
     "make_sk_meta",
     "make_sk_quote_date",
