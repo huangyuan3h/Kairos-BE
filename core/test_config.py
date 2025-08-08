@@ -7,6 +7,7 @@ from core.data_collector.stock.cn_stock_catalog import get_cn_a_stock_catalog
 from core.data_collector.stock.us_stock_catalog import get_us_stock_catalog
 from core.data_collector.gold.catalog import get_gold_catalog
 from core.data_collector.fx.catalog import get_fx_catalog
+from core.data_collector.index.catalog import get_index_catalog
 
 
 def main():
@@ -28,6 +29,10 @@ def main():
     fx_df = get_fx_catalog()
     print("FX catalog (head):")
     print(fx_df.head())
+
+    index_df = get_index_catalog()
+    print("Index catalog (head):")
+    print(index_df.head())
 
     print("All tests passed!")
 
