@@ -1,5 +1,5 @@
 import { lambda } from "@pulumi/aws";
-import { asset } from "@pulumi/pulumi";
+import * as pulumi from "@pulumi/pulumi";
 /**
  * Cron job configurations
  * Manages all scheduled tasks and background jobs
@@ -10,9 +10,10 @@ export function createCronJobs(
 ) {
   // Python deps Layer (numpy/pandas/akshare/boto3)
   const pyDeps = new lambda.LayerVersion("PyDeps", {
+    layerName: "PyDeps",
     // The zip root must contain a top-level "python/" folder
-    code: new asset.FileArchive("layers"),
-    compatibleRuntimes: ["python3.11"],
+    code: new pulumi.asset.FileArchive("layers"),
+    compatibleRuntimes: [lambda.Runtime.Python3d11],
   });
 
   // Synchronize CN & US stock catalogs monthly on the 1st (00:00 UTC)
