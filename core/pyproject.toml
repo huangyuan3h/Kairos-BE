@@ -9,7 +9,6 @@ dependencies = [
     "akshare>=1.12.0",
     "pandas>=2.0.0",
     "boto3>=1.40.0",
-    "numpy>=2.0.0",
 ]
 
 [project.optional-dependencies]

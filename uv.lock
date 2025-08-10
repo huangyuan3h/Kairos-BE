@@ -221,7 +221,6 @@ source = { editable = "core" }
 dependencies = [
     { name = "akshare" },
     { name = "boto3" },
-    { name = "numpy" },
     { name = "pandas" },
     { name = "requests" },
 ]
@@ -237,7 +236,6 @@ test = [
 requires-dist = [
     { name = "akshare", specifier = ">=1.12.0" },
     { name = "boto3", specifier = ">=1.40.0" },
-    { name = "numpy", specifier = ">=2.0.0" },
     { name = "pandas", specifier = ">=2.0.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=7.0.0" },
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=4.0.0" },
