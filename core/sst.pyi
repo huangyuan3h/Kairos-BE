@@ -6,4 +6,10 @@ class Resource:
     class App:
         name: str
         stage: str
+    class MarketData:
+        name: str
+        type: str
+    class MyLinkableValue:
+        foo: str
+        type: str
 
