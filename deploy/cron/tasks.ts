@@ -22,11 +22,11 @@ export function createCronJobs(
     // Runs at 00:00 UTC on day 1 of every month
     schedule: "cron(0 0 1 * ? *)",
     function: {
-      // Python zip requires handler in bundle root
-      bundle: "functions/src/functions",
-      handler: "sync_market_data.handler",
+      // Use absolute handler path; SST will package its directory for Python
+      handler: "functions/src/functions/sync_market_data.handler",
       runtime: "python3.11",
       layers: [pyDeps.arn],
+      python: { container: true }, // add this
       link: [database.marketDataTable],
       environment: {
         MARKET_DATA_TABLE: database.marketDataTable.name,
