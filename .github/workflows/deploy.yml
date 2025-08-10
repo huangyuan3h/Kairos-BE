@@ -11,12 +11,13 @@ permissions:
 
 env:
   AWS_REGION: us-east-1
-  SST_STAGE: main
+  SST_STAGE: prod
 
 jobs:
   deploy:
     name: SST deploy
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - name: Checkout
         uses: actions/checkout@v4
