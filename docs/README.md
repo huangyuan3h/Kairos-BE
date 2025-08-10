@@ -35,6 +35,8 @@
 
 ### 🔧 开发指南
 
+- [部署架构设计](./development/deployment-architecture.md) - 模块化部署架构设计
+- [部署操作指南](./development/deployment-guide.md) - 详细的部署操作指南
 - [定时任务框架概述](./development/framework-overview.md) - 可配置的定时任务框架
 - [框架部署指南](./development/framework-deployment.md) - 框架部署和验证
 - [快速部署测试](./development/quick-deployment-test.md) - 生产环境快速验证
