@@ -1,3 +1,5 @@
+import { lambda } from "@pulumi/aws";
+import { asset } from "@pulumi/pulumi";
 /**
  * Cron job configurations
  * Manages all scheduled tasks and background jobs
@@ -6,6 +8,13 @@ export function createCronJobs(
   linkables: { linkableValue: any },
   database: { marketDataTable: any }
 ) {
+  // Python deps Layer (numpy/pandas/akshare/boto3)
+  const pyDeps = new lambda.LayerVersion("PyDeps", {
+    // The zip root must contain a top-level "python/" folder
+    code: new asset.FileArchive("layers"),
+    compatibleRuntimes: ["python3.11"],
+  });
+
   // Synchronize CN & US stock catalogs monthly on the 1st (00:00 UTC)
   const syncMarketData = new sst.aws.Cron("SyncMarketData", {
     // EventBridge cron: minute hour day-of-month month day-of-week year
@@ -15,6 +24,7 @@ export function createCronJobs(
       // Root-level handler per SST aws-python example
       handler: "functions/src/functions/sync_market_data.handler",
       runtime: "python3.11",
+      layers: [pyDeps.arn],
       link: [database.marketDataTable],
       environment: {
         MARKET_DATA_TABLE: database.marketDataTable.name,
