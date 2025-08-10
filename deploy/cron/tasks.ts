@@ -22,8 +22,9 @@ export function createCronJobs(
     // Runs at 00:00 UTC on day 1 of every month
     schedule: "cron(0 0 1 * ? *)",
     function: {
-      // Root-level handler per SST aws-python example
-      handler: "functions/src/functions/sync_market_data.handler",
+      // Python zip requires handler in bundle root
+      bundle: "functions/src/functions",
+      handler: "sync_market_data.handler",
       runtime: "python3.11",
       layers: [pyDeps.arn],
       link: [database.marketDataTable],
