@@ -56,6 +56,12 @@ export function createDatabase() {
       // - RANGE: ENTITY#<type>#<timestamp or sort key>
       byMarketStatus: { hashKey: "gsi2pk", rangeKey: "gsi2sk" },
     },
+    // Give the DynamoDB table a stable physical name to avoid duplicates
+    transform: {
+      table: {
+        name: `${$app.name}-${$app.stage}-MarketDataTable`,
+      },
+    },
   });
 
   return {
