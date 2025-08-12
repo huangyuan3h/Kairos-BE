@@ -64,7 +64,25 @@ export function createDatabase() {
     },
   });
 
+  // Reports table for storing daily overall reports and related artifacts
+  // Key design:
+  // - pk/sk: single-table style for report entities
+  //   Example: pk = "REPORT#CN#STOCK#OVERALL", sk = "DATE#2025-01-01"
+  const reportsTable = new sst.aws.Dynamo("Reports", {
+    fields: {
+      pk: "string",
+      sk: "string",
+    },
+    primaryIndex: { hashKey: "pk", rangeKey: "sk" },
+    transform: {
+      table: {
+        name: `${$app.name}-${$app.stage}-ReportsTable`,
+      },
+    },
+  });
+
   return {
     marketDataTable,
+    reportsTable,
   };
 }

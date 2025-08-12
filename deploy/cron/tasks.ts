@@ -4,7 +4,7 @@
  */
 export function createCronJobs(
   linkables: { linkableValue: any },
-  database: { marketDataTable: any }
+  database: { marketDataTable: any; reportsTable: any }
 ) {
   // No Lambda Layer: Python deps are handled by container packaging
 
@@ -28,7 +28,25 @@ export function createCronJobs(
     },
   });
 
+  // Generate CN stock market overall report daily at 01:00 UTC
+  const overallReport = new sst.aws.Cron("GenerateOverallReport", {
+    // Runs at 01:00 UTC every day
+    schedule: "cron(0 1 * * ? *)",
+    function: {
+      handler: "functions/src/handlers/node/overall_report.handler",
+      runtime: "nodejs20.x",
+      timeout: "5 minutes",
+      memory: "1024 MB",
+      link: [database.marketDataTable, database.reportsTable],
+      environment: {
+        MARKET_DATA_TABLE: database.marketDataTable.name,
+        REPORTS_TABLE_NAME: database.reportsTable.name,
+      },
+    },
+  });
+
   return {
     syncMarketData,
+    overallReport,
   };
 }

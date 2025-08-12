@@ -1,9 +1,6 @@
-import { createLinkables } from "./shared/linkables";
-import { createDatabase } from "./database/dynamodb";
 import { createCronJobs } from "./cron/tasks";
-import { createRestApi } from "./api/rest";
-import { createGraphQLApi } from "./api/graphql";
-import { createAuth } from "./auth/cognito";
+import { createDatabase } from "./database/dynamodb";
+import { createLinkables } from "./shared/linkables";
 /**
  * Main deployment configuration
  * Orchestrates all infrastructure resources
