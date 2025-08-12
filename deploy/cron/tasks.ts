@@ -18,6 +18,9 @@ export function createCronJobs(
       handler: "functions/src/functions/sync_market_data.handler",
       runtime: "python3.11",
       python: { container: true },
+      timeout: "15 minutes",
+      memory: "2048 MB",
+      storage: "1 GB",
       link: [database.marketDataTable],
       environment: {
         MARKET_DATA_TABLE: database.marketDataTable.name,
