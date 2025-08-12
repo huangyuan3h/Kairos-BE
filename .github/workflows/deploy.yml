@@ -51,12 +51,6 @@ jobs:
       - name: Sync Python workspace deps
         run: uv sync --frozen --all-extras
 
-      - name: Build Python deps Layer
-        run: |
-          mkdir -p layers/python
-          uv pip install --python 3.11 --target layers/python \
-            numpy==2.0.2 pandas==2.2.2 akshare==1.17.31 boto3==1.40.0
-
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
