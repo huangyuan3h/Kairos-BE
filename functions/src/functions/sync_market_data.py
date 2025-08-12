@@ -49,3 +49,4 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         logger.exception("Sync failed: %s", exc)
         return {"statusCode": 500, "body": json.dumps({"error": str(exc)})}
 
+
