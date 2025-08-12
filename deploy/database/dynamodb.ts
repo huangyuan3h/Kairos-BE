@@ -58,10 +58,9 @@ export function createDatabase() {
     },
     // Give the DynamoDB table a stable physical name to avoid duplicates
     transform: {
-      table: (args) => ({
-        ...args,
+      table: {
         name: `${$app.name}-${$app.stage}-MarketDataTable`,
-      }),
+      },
     },
   });
 
