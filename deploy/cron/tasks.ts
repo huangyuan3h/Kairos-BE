@@ -1,5 +1,3 @@
-import { lambda } from "@pulumi/aws";
-import * as pulumi from "@pulumi/pulumi";
 /**
  * Cron job configurations
  * Manages all scheduled tasks and background jobs
@@ -8,13 +6,7 @@ export function createCronJobs(
   linkables: { linkableValue: any },
   database: { marketDataTable: any }
 ) {
-  // Python deps Layer (numpy/pandas/akshare/boto3)
-  const pyDeps = new lambda.LayerVersion("PyDeps", {
-    layerName: "PyDeps",
-    // The zip root must contain a top-level "python/" folder
-    code: new pulumi.asset.FileArchive("layers"),
-    compatibleRuntimes: [lambda.Runtime.Python3d11],
-  });
+  // No Lambda Layer: Python deps are handled by container packaging
 
   // Synchronize CN & US stock catalogs monthly on the 1st (00:00 UTC)
   const syncMarketData = new sst.aws.Cron("SyncMarketData", {
@@ -25,8 +17,7 @@ export function createCronJobs(
       // Use absolute handler path; SST will package its directory for Python
       handler: "functions/src/functions/sync_market_data.handler",
       runtime: "python3.11",
-      layers: [pyDeps.arn],
-      python: { container: true }, // add this
+      python: { container: true },
       link: [database.marketDataTable],
       environment: {
         MARKET_DATA_TABLE: database.marketDataTable.name,
