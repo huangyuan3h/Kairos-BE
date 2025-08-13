@@ -35,7 +35,7 @@ export function createCronJobs(
     function: {
       handler: "functions/src/handlers/node/overall_report.handler",
       runtime: "nodejs20.x",
-      timeout: "5 minutes",
+      timeout: "15 minutes",
       memory: "1024 MB",
       link: [database.marketDataTable, database.reportsTable],
       environment: {

@@ -18,6 +18,8 @@ export interface OverallReport {
   reportId: string;
   asOfDate: string;
   marketScope: "CN" | "US" | "GLOBAL";
+  title?: string;
+  contentMarkdown?: string;
   summary: string;
   opportunities: Signal[];
   risks: Signal[];
