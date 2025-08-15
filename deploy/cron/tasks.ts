@@ -41,6 +41,7 @@ export function createCronJobs(
       environment: {
         MARKET_DATA_TABLE: database.marketDataTable.name,
         REPORTS_TABLE_NAME: database.reportsTable.name,
+        GEMINI_API_KEY: process.env.GEMINI_API_KEY || "",
       },
     },
   });

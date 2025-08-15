@@ -61,7 +61,6 @@ describe("env utils", () => {
   test("dynamo table name composition with defaults", () => {
     delete process.env.SST_STAGE;
     process.env.NODE_ENV = "development";
-    delete process.env.APP_NAME;
     expect(getDynamoTableName(DynamoTable.MarketData)).toBe(
       "kairos-be-dev-MarketDataTable"
     );
@@ -70,14 +69,13 @@ describe("env utils", () => {
     );
   });
 
-  test("dynamo table name composition with overrides", () => {
+  test("dynamo table name composition with stage override", () => {
     process.env.SST_STAGE = "prod";
-    process.env.APP_NAME = "myapp";
     expect(getDynamoTableName(DynamoTable.MarketData)).toBe(
-      "myapp-prod-MarketDataTable"
+      "kairos-be-prod-MarketDataTable"
     );
     expect(getDynamoTableName(DynamoTable.Reports)).toBe(
-      "myapp-prod-ReportsTable"
+      "kairos-be-prod-ReportsTable"
     );
   });
 });

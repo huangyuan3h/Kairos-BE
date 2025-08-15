@@ -1,50 +1,45 @@
 import { DynamoTable, getDynamoTableName } from "@src/util/dynamodb";
 import type { OverallReport } from "../domain/types";
 import { createDynamoReportRepository } from "../infrastructure/dynamo_report_repository";
+import { createAiAgent } from "./ai_agent";
+import { createMarketDataTool, createNewsTool } from "./tools";
 
 export interface GenerateOverallReportInput {
   asOfDate: string;
   marketScope: "CN" | "US" | "GLOBAL";
+  systemPrompt: string;
+  geminiApiKey: string;
 }
 
 /**
  * AI Agent-driven overall report generation workflow.
- * Orchestrates the generation process using various tools and AI capabilities.
+ * Uses Gemini 2.5 Flash to generate reports with available tools.
  */
 export async function generateOverallReport(
   input: GenerateOverallReportInput
 ): Promise<OverallReport> {
-  const { asOfDate, marketScope } = input;
+  const { asOfDate, marketScope, systemPrompt, geminiApiKey } = input;
 
   // Initialize repository for saving the final report
   const repo = createDynamoReportRepository({
     tableName: getDynamoTableName(DynamoTable.Reports),
   });
 
-  // TODO: Initialize AI agent orchestrator and tool registry
-  // const orchestrator = createAgentOrchestrator();
-  // const tools = createToolRegistry();
+  // Initialize AI agent with Gemini
+  const aiAgent = createAiAgent(geminiApiKey);
 
-  // TODO: The AI agent will orchestrate the following workflow:
-  // 1. Use market_analysis tool to gather market insights
-  // 2. Use news_sentiment tool to analyze news impact
-  // 3. Use risk_assessment tool to identify risks/opportunities
-  // 4. Use report_composition tool to generate final report
+  // Register available tools
+  aiAgent.registerTool(createMarketDataTool());
+  aiAgent.registerTool(createNewsTool());
 
-  // Placeholder: Basic workflow (to be replaced with AI agent orchestration)
-  const report: OverallReport = {
-    reportId: `REPORT#${marketScope}#OVERALL#${asOfDate}`,
+  // Generate report using AI agent
+  const report = await aiAgent.generateOverallReport({
     asOfDate,
     marketScope,
-    title: `${marketScope} Market Overall Report - ${asOfDate}`,
-    contentMarkdown: `# ${marketScope} Market Overview\n\n*Report generated on ${asOfDate}*\n\nThis is a placeholder report. The AI agent will generate comprehensive analysis here.`,
-    summary: `AI-generated ${marketScope} market analysis for ${asOfDate}`,
-    opportunities: [],
-    risks: [],
-    promptVersion: "v2",
-    modelVersion: "ai-agent-v1",
-  };
+    systemPrompt,
+  });
 
+  // Save report to database
   await repo.save(report);
 
   return report;

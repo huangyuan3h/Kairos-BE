@@ -7,6 +7,25 @@ jest.mock("../../infrastructure/dynamo_report_repository", () => ({
   }),
 }));
 
+// Mock AI agent to avoid actual API calls
+jest.mock("../../application/ai_agent", () => ({
+  createAiAgent: () => ({
+    registerTool: jest.fn(),
+    generateOverallReport: async () => ({
+      reportId: "REPORT#CN#OVERALL#2025-01-01",
+      asOfDate: "2025-01-01",
+      marketScope: "CN",
+      title: "CN Market Overall Report - 2025-01-01",
+      contentMarkdown: "# CN Market Analysis\n\nAI-generated analysis...",
+      summary: "AI-generated CN market analysis for 2025-01-01",
+      opportunities: [],
+      risks: [],
+      promptVersion: "ai-sdk-v5",
+      modelVersion: "gemini-1.5-flash",
+    }),
+  }),
+}));
+
 // Mock environment utilities
 jest.mock("@src/util/dynamodb", () => ({
   DynamoTable: {
@@ -22,13 +41,15 @@ describe("generateOverallReport", () => {
     const result = await generateOverallReport({
       asOfDate: "2025-01-01",
       marketScope: "CN",
+      systemPrompt: "Test prompt",
+      geminiApiKey: "test-key",
     });
 
     expect(result.asOfDate).toBe("2025-01-01");
     expect(result.marketScope).toBe("CN");
     expect(result.reportId).toContain("REPORT#CN#OVERALL#2025-01-01");
     expect(result.title).toContain("CN Market Overall Report");
-    expect(result.promptVersion).toBe("v2");
-    expect(result.modelVersion).toBe("ai-agent-v1");
+    expect(result.promptVersion).toBe("ai-sdk-v5");
+    expect(result.modelVersion).toBe("gemini-1.5-flash");
   });
 });

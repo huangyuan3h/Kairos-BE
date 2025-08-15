@@ -6,7 +6,6 @@ module.exports = {
   testMatch: ["**/__tests__/**/*.test.ts"],
   moduleFileExtensions: ["ts", "js", "json"],
   moduleNameMapper: {
-    "^(.*).js$": "$1",
     "^@src/(.*)$": "<rootDir>/src/$1",
   },
   clearMocks: true,
