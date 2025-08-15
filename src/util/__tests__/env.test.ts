@@ -1,3 +1,4 @@
+import { DynamoTable, getDynamoTableName } from "../../util/dynamodb";
 import {
   getBoolean,
   getEnvVar,
@@ -55,5 +56,28 @@ describe("env utils", () => {
 
   test("getString returns default", () => {
     expect(getString("NOPE", "x")).toBe("x");
+  });
+
+  test("dynamo table name composition with defaults", () => {
+    delete process.env.SST_STAGE;
+    process.env.NODE_ENV = "development";
+    delete process.env.APP_NAME;
+    expect(getDynamoTableName(DynamoTable.MarketData)).toBe(
+      "kairos-be-dev-MarketDataTable"
+    );
+    expect(getDynamoTableName(DynamoTable.Reports)).toBe(
+      "kairos-be-dev-ReportsTable"
+    );
+  });
+
+  test("dynamo table name composition with overrides", () => {
+    process.env.SST_STAGE = "prod";
+    process.env.APP_NAME = "myapp";
+    expect(getDynamoTableName(DynamoTable.MarketData)).toBe(
+      "myapp-prod-MarketDataTable"
+    );
+    expect(getDynamoTableName(DynamoTable.Reports)).toBe(
+      "myapp-prod-ReportsTable"
+    );
   });
 });

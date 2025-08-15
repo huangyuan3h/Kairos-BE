@@ -1,0 +1,7 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../.sst/dist/functions"
+  },
+  "include": ["src/**/*.ts"]
+}
