@@ -4,7 +4,7 @@
  */
 export function createCronJobs(
   linkables: { linkableValue: any },
-  database: { marketDataTable: any; reportsTable: any },
+  database: { marketDataTable: any; reportsTable: any }
 ) {
   // No Lambda Layer: Python deps are handled by container packaging
 
@@ -39,7 +39,11 @@ export function createCronJobs(
       memory: "1024 MB",
       link: [database.marketDataTable, database.reportsTable],
       environment: {
-        GEMINI_API_KEY: process.env.GEMINI_API_KEY || "",
+        GOOGLE_GENERATIVE_AI_API_KEY:
+          process.env.GOOGLE_GENERATIVE_AI_API_KEY || "",
+        LANGFUSE_PUBLIC_KEY: process.env.LANGFUSE_PUBLIC_KEY || "",
+        LANGFUSE_SECRET_KEY: process.env.LANGFUSE_SECRET_KEY || "",
+        LANGFUSE_HOST: process.env.LANGFUSE_HOST || "",
       },
     },
   });

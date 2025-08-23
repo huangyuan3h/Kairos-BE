@@ -12,7 +12,7 @@ export function loadAiConfig(): AiConfig {
   const provider =
     (getString("MODEL_PROVIDER", "google") as AiConfig["provider"]) || "google";
   const model = getString("MODEL_NAME", "gemini-2.0-flash-exp");
-  const apiKey = getEnvVar<string | undefined>("GEMINI_API_KEY", {
+  const apiKey = getEnvVar<string | undefined>("GOOGLE_GENERATIVE_AI_API_KEY", {
     defaultValue: undefined,
   });
   const stage = getStage();

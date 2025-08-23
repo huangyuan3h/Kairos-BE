@@ -25,9 +25,11 @@ const reportSchema = z.object({
 
 export async function generateOverallReport(): Promise<OverallReport> {
   // Get configuration from environment variables
-  const geminiApiKey = process.env.GEMINI_API_KEY;
+  const geminiApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   if (!geminiApiKey) {
-    throw new Error("GEMINI_API_KEY environment variable is required");
+    throw new Error(
+      "GOOGLE_GENERATIVE_AI_API_KEY environment variable is required",
+    );
   }
 
   // Get system prompt from Langfuse
