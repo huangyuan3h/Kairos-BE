@@ -1,8 +1,8 @@
+import { getMarketAnalysisTools } from "@/ai-tools";
+import { createAiAgent } from "@src/ai-agent/agent";
 import { DynamoTable, getDynamoTableName } from "@src/util/dynamodb";
 import { createDynamoReportRepository } from "../db/dynamo_report_repository";
 import type { OverallReport } from "../types/domain";
-import { createAiAgent } from "./ai_agent";
-import { createMarketDataTool, createNewsTool } from "./tools";
 
 /**
  * AI Agent-driven overall report generation workflow.
@@ -55,18 +55,52 @@ export async function generateOverallReport(): Promise<OverallReport> {
   });
 
   // Initialize AI agent with Gemini
-  const aiAgent = createAiAgent(key);
+  const aiAgent = createAiAgent({
+    model: "gemini-1.5-flash",
+    tools: getMarketAnalysisTools(),
+  });
 
-  // Register available tools
-  aiAgent.registerTool(createMarketDataTool());
-  aiAgent.registerTool(createNewsTool());
+  // Create the full prompt for AI agent
+  const fullPrompt = `${prompt}
+
+## Available Tools
+${getMarketAnalysisTools()
+  .map((tool: any) => `- ${tool.name}: ${tool.description}`)
+  .join("\n")}
+
+## Current Context
+- Date: ${asOfDate}
+- Market Scope: ${marketScope}
+
+Please analyze the market and generate a comprehensive report. You can use the available tools if needed.
+
+## Output Format
+Please provide your analysis in the following structure:
+
+1. **Title**: A clear title for the report
+2. **Content**: Detailed analysis in Markdown format
+3. **Summary**: Brief summary of key findings
+4. **Opportunities**: List of investment opportunities
+5. **Risks**: List of investment risks
+
+Format your response clearly with proper Markdown headings.`;
 
   // Generate report using AI agent
-  const report = await aiAgent.generateOverallReport({
+  const response = await aiAgent.chat([{ role: "user", content: fullPrompt }]);
+
+  // Parse the response and create report structure
+  const report: OverallReport = {
+    reportId: `REPORT#${marketScope}#OVERALL#${asOfDate}`,
     asOfDate,
     marketScope,
-    systemPrompt: prompt,
-  });
+    title: `${marketScope} Market Overall Report - ${asOfDate}`,
+    contentMarkdown: response.content || response,
+    summary: `AI-generated ${marketScope} market analysis for ${asOfDate}`,
+    opportunities: [],
+    risks: [],
+    promptVersion: "ai-sdk-v5",
+    modelVersion: "gemini-1.5-flash",
+  };
 
   // Save report to database
   await repo.save(report);

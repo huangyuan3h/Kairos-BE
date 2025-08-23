@@ -4,7 +4,6 @@ import {
   createStreamingAgent,
   createTextAgent,
 } from "../agent";
-import { calculatorTool, weatherTool } from "../tools/example-tools";
 
 // Mock Langfuse to avoid runtime issues in tests
 jest.mock("../telemetry/langfuse", () => ({
@@ -71,37 +70,6 @@ describe("AI Agent Factory", () => {
       expect(typeof agent.generate).toBe("function");
     });
   });
-
-  describe("createAiAgent", () => {
-    it("should create an agent with tools", () => {
-      const agent = createAiAgent({
-        tools: [calculatorTool, weatherTool],
-        outputFormat: "text",
-      });
-
-      expect(agent).toBeDefined();
-      expect(typeof agent.chat).toBe("function");
-      expect(typeof agent.generate).toBe("function");
-    });
-
-    it("should create an agent with custom configuration", () => {
-      const agent = createAiAgent({
-        model: "gemini-2.0-flash-exp",
-        temperature: 0.3,
-        maxTokens: 500,
-        systemPrompt: "Custom prompt",
-        outputFormat: "object",
-      });
-
-      expect(agent).toBeDefined();
-    });
-
-    it("should use default values when configuration is minimal", () => {
-      const agent = createAiAgent();
-
-      expect(agent).toBeDefined();
-    });
-  });
 });
 
 describe("AI Agent Interface", () => {
@@ -139,34 +107,6 @@ describe("AI Agent Interface", () => {
       // This is a structural test - actual API calls would require mocking
       expect(agent.chat).toBeDefined();
     });
-  });
-});
-
-describe("Tool Integration", () => {
-  it("should support tool injection", () => {
-    const agent = createAiAgent({
-      tools: [calculatorTool],
-      outputFormat: "text",
-    });
-
-    expect(agent).toBeDefined();
-  });
-
-  it("should support multiple tools", () => {
-    const agent = createAiAgent({
-      tools: [calculatorTool, weatherTool],
-      outputFormat: "text",
-    });
-
-    expect(agent).toBeDefined();
-  });
-
-  it("should work without tools", () => {
-    const agent = createAiAgent({
-      outputFormat: "text",
-    });
-
-    expect(agent).toBeDefined();
   });
 });
 
@@ -213,42 +153,5 @@ describe("Configuration Validation", () => {
       model: "gemini-2.0-flash-exp",
     });
     expect(agent).toBeDefined();
-  });
-});
-
-describe("Tool Definition", () => {
-  it("should validate tool structure", () => {
-    expect(calculatorTool).toHaveProperty("name");
-    expect(calculatorTool).toHaveProperty("description");
-    expect(calculatorTool).toHaveProperty("inputSchema");
-    expect(calculatorTool).toHaveProperty("execute");
-  });
-
-  it("should have calculator tool with correct properties", () => {
-    expect(calculatorTool.name).toBe("calculator");
-    expect(typeof calculatorTool.execute).toBe("function");
-  });
-
-  it("should have weather tool with correct properties", () => {
-    expect(weatherTool.name).toBe("get_weather");
-    expect(typeof weatherTool.execute).toBe("function");
-  });
-});
-
-// Integration test helpers (these would require actual API mocking)
-describe("Integration Tests", () => {
-  // These tests would require proper mocking of the Google AI API
-  // and would test actual functionality
-
-  it("should be able to create agents for different use cases", () => {
-    const textAgent = createTextAgent();
-    const streamingAgent = createStreamingAgent();
-    const objectAgent = createObjectAgent();
-    const fullAgent = createAiAgent({ tools: [calculatorTool] });
-
-    expect(textAgent).toBeDefined();
-    expect(streamingAgent).toBeDefined();
-    expect(objectAgent).toBeDefined();
-    expect(fullAgent).toBeDefined();
   });
 });

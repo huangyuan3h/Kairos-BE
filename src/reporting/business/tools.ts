@@ -1,3 +1,9 @@
-export type { AiAgentTool } from "./ai_agent";
-export { createMarketDataTool } from "./market_data_tool";
-export { createNewsTool } from "./news_tool";
+// This file has been deprecated. Use @/ai-tools instead.
+// All tools are now centralized in the ai-tools module for better reusability.
+
+export {
+  createMarketDataTool,
+  createNewsAnalysisTool,
+  getAllTools,
+  getMarketAnalysisTools,
+} from "@/ai-tools";

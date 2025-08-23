@@ -12,7 +12,9 @@
     "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@src/*": ["src/*"]
+      "@src/*": ["src/*"],
+      "@/ai-tools": ["src/ai-tools/index"],
+      "@/ai/*": ["src/ai-agent/*"]
     }
   },
   "include": ["sst.config.ts", "src/**/*.ts", "functions/**/*.ts"],
