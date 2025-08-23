@@ -18,7 +18,7 @@ const reportSchema = z.object({
   content: z
     .string()
     .describe(
-      "Detailed market analysis content in Chinese, including investment suggestions and market insights"
+      "Detailed market analysis content in Chinese, including investment suggestions and market insights",
     ),
 });
 
@@ -38,7 +38,7 @@ export async function generateOverallReport(): Promise<OverallReport> {
   const prompt = await langfuse.getPrompt("report/overall_system");
   if (!prompt?.prompt) {
     throw new Error(
-      "System prompt 'report/overall_system' not found in Langfuse"
+      "System prompt 'report/overall_system' not found in Langfuse",
     );
   }
 
