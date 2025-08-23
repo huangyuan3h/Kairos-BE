@@ -39,8 +39,6 @@ export function createCronJobs(
       memory: "1024 MB",
       link: [database.marketDataTable, database.reportsTable],
       environment: {
-        MARKET_DATA_TABLE: database.marketDataTable.name,
-        REPORTS_TABLE_NAME: database.reportsTable.name,
         GEMINI_API_KEY: process.env.GEMINI_API_KEY || "",
       },
     },
