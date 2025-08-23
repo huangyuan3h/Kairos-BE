@@ -25,12 +25,13 @@ export interface AiAgentConfig {
   temperature?: number;
   maxTokens?: number;
   systemPrompt?: string;
+  schema?: z.ZodSchema<any>;
 }
 
 // AI Agent interface
 export interface AiAgent {
   chat: (
-    messages: Array<{ role: "user" | "assistant"; content: string }>,
+    messages: Array<{ role: "user" | "assistant"; content: string }>
   ) => Promise<any>;
   generate: (prompt: string) => Promise<any>;
 }
@@ -44,6 +45,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
     temperature = 0.7,
     maxTokens = 1000,
     systemPrompt = "You are a helpful AI assistant.",
+    schema = defaultObjectSchema,
   } = config;
 
   // Create Google AI model instance
@@ -96,7 +98,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
   const withTracing = async <T>(
     operation: string,
     fn: () => Promise<T>,
-    metadata?: Record<string, any>,
+    metadata?: Record<string, any>
   ): Promise<T> => {
     const langfuse = getLangfuse();
     if (!langfuse) return fn();
@@ -130,7 +132,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
 
   // Chat method with different output formats
   const chat = async (
-    messages: Array<{ role: "user" | "assistant"; content: string }>,
+    messages: Array<{ role: "user" | "assistant"; content: string }>
   ) => {
     return withTracing("chat", async () => {
       const toolDefinitions = createToolDefinitions();
@@ -150,7 +152,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
           return streamObject({
             model: googleModel,
             messages,
-            schema: defaultObjectSchema as any,
+            schema: schema as any,
             temperature,
             maxOutputTokens: maxTokens,
             system: systemPrompt,
@@ -160,7 +162,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
           return generateObject({
             model: googleModel,
             messages,
-            schema: defaultObjectSchema as any,
+            schema: schema as any,
             temperature,
             maxOutputTokens: maxTokens,
             system: systemPrompt,
@@ -196,21 +198,50 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
 
 // Utility function to create a simple text-only agent
 export function createTextAgent(
-  config: Omit<AiAgentConfig, "outputFormat"> = {},
+  config: Omit<AiAgentConfig, "outputFormat"> = {}
 ): AiAgent {
   return createAiAgent({ ...config, outputFormat: "text" });
 }
 
 // Utility function to create a streaming agent
 export function createStreamingAgent(
-  config: Omit<AiAgentConfig, "outputFormat"> = {},
+  config: Omit<AiAgentConfig, "outputFormat"> = {}
 ): AiAgent {
   return createAiAgent({ ...config, outputFormat: "stream-text" });
 }
 
 // Utility function to create an object-generating agent
 export function createObjectAgent(
-  config: Omit<AiAgentConfig, "outputFormat"> = {},
+  config: Omit<AiAgentConfig, "outputFormat"> = {}
 ): AiAgent {
   return createAiAgent({ ...config, outputFormat: "object" });
 }
+
+// Utility function to create an object-generating agent with custom schema
+export function createObjectAgentWithSchema(
+  config: Omit<AiAgentConfig, "outputFormat"> & { schema: z.ZodSchema<any> }
+): AiAgent {
+  return createAiAgent({ ...config, outputFormat: "object" });
+}
+
+// Example usage with custom schema:
+//
+// ```typescript
+// import { z } from "zod";
+// import { createObjectAgentWithSchema } from "@src/ai-agent/agent";
+//
+// const userSchema = z.object({
+//   name: z.string().describe("User's full name"),
+//   age: z.number().describe("User's age in years"),
+//   email: z.string().email().describe("User's email address"),
+// });
+//
+// const agent = createObjectAgentWithSchema({
+//   model: "gemini-2.0-flash-exp",
+//   schema: userSchema,
+//   systemPrompt: "You are a helpful assistant that extracts user information.",
+// });
+//
+// const result = await agent.generate("Extract info from: John Doe, 30 years old, john@example.com");
+// // Result will be: { name: "John Doe", age: 30, email: "john@example.com" }
+// ```
