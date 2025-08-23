@@ -17,12 +17,7 @@ export interface Signal {
 export interface OverallReport {
   reportId: string;
   asOfDate: string;
-  marketScope: "CN" | "US" | "GLOBAL";
-  title?: string;
-  contentMarkdown?: string;
-  summary: string;
-  opportunities: Signal[];
-  risks: Signal[];
-  promptVersion?: string;
-  modelVersion?: string;
+  title: string;
+  content: string;
+  createdAt: string;
 }

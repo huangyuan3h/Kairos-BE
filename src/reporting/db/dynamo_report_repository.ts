@@ -12,7 +12,7 @@ export function createDynamoReportRepository(params: {
 
   return {
     async save(report: OverallReport): Promise<void> {
-      const pk = `REPORT#OVERALL#${report.marketScope}`;
+      const pk = `REPORT#OVERALL`;
       const sk = `DATE#${report.asOfDate}`;
       await doc.send(
         new PutCommand({
@@ -22,14 +22,9 @@ export function createDynamoReportRepository(params: {
             sk,
             reportId: report.reportId,
             asOfDate: report.asOfDate,
-            marketScope: report.marketScope,
-            title: report.title ?? `Overall Report ${report.asOfDate}`,
-            content_markdown: report.contentMarkdown ?? "",
-            summary: report.summary,
-            opportunities: report.opportunities,
-            risks: report.risks,
-            promptVersion: report.promptVersion,
-            modelVersion: report.modelVersion,
+            title: report.title,
+            content: report.content,
+            createdAt: report.createdAt,
           },
         }),
       );
