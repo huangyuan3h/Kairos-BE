@@ -99,7 +99,7 @@ describe("AI Agent Interface", () => {
     });
 
     it("should accept message array", () => {
-      const messages = [
+      const _messages = [
         { role: "user" as const, content: "Hello" },
         { role: "assistant" as const, content: "Hi there!" },
       ];

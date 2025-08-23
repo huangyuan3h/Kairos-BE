@@ -46,7 +46,7 @@ export async function generateOverallReport(): Promise<OverallReport> {
     asOfDate,
     marketScope,
     systemPrompt: prompt,
-    geminiApiKey: key,
+    geminiApiKey: _key,
   } = config;
 
   // Initialize repository for saving the final report
