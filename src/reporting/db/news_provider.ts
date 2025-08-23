@@ -1,4 +1,4 @@
-import type { NewsProvider } from "./contracts";
+import type { NewsProvider } from "../types/contracts";
 
 // Placeholder implementation; later integrate real news sources.
 export function createNewsProvider(): NewsProvider {

@@ -1,4 +1,4 @@
-import type { OverallReport } from "../domain/types";
+import type { OverallReport } from "./domain";
 
 /**
  * Market data reader interface

@@ -1,4 +1,4 @@
-import type { MarketDataReader } from "./contracts";
+import type { MarketDataReader } from "../types/contracts";
 
 // Placeholder: later implement queries to MarketData table
 export function createMarketDataReader(): MarketDataReader {

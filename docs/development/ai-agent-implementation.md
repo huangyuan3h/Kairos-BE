@@ -6,19 +6,19 @@
 
 ## 架构组件
 
-### 1. AI Agent (`src/reporting/application/ai_agent.ts`)
+### 1. AI Agent (`src/reporting/business/ai_agent.ts`)
 
 - **核心类**：`AiAgent` 负责与 Gemini API 交互
 - **工具管理**：支持注册和执行各种工具
 - **报告生成**：使用 AI 生成结构化的市场分析报告
 
-### 2. 工具系统 (`src/reporting/application/tools/`)
+### 2. 工具系统 (`src/reporting/business/tools.ts`)
 
 - **MarketDataTool**：提供市场数据和分析
 - **NewsTool**：提供新闻分析和情感评估
 - **可扩展性**：易于添加新的工具
 
-### 3. 报告生成 (`src/reporting/application/generate_overall_report.ts`)
+### 3. 报告生成 (`src/reporting/business/generate_overall_report.ts`)
 
 - **工作流**：初始化 AI agent → 注册工具 → 生成报告 → 保存到数据库
 - **集成**：与现有的 DynamoDB 存储系统集成

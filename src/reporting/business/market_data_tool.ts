@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AiAgentTool } from "../ai_agent";
+import type { AiAgentTool } from "./ai_agent";
 
 /**
  * Simple market data tool for demonstration
@@ -7,10 +7,12 @@ import type { AiAgentTool } from "../ai_agent";
 export class MarketDataTool implements AiAgentTool {
   name = "market_data";
   description = "Get basic market data and trends for analysis";
-  
+
   // Parameters schema for AI SDK 5
   parameters = z.object({
-    marketScope: z.enum(["CN", "US", "GLOBAL"]).describe("Market scope to analyze"),
+    marketScope: z
+      .enum(["CN", "US", "GLOBAL"])
+      .describe("Market scope to analyze"),
     asOfDate: z.string().describe("Date for the analysis"),
   });
 

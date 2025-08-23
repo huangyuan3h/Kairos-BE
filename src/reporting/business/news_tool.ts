@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { AiAgentTool } from "../ai_agent";
+import type { AiAgentTool } from "./ai_agent";
 
 /**
  * Simple news tool for demonstration
@@ -7,12 +7,17 @@ import type { AiAgentTool } from "../ai_agent";
 export class NewsTool implements AiAgentTool {
   name = "news_analysis";
   description = "Analyze recent news headlines for market impact";
-  
+
   // Parameters schema for AI SDK 5
   parameters = z.object({
-    marketScope: z.enum(["CN", "US", "GLOBAL"]).describe("Market scope to analyze"),
+    marketScope: z
+      .enum(["CN", "US", "GLOBAL"])
+      .describe("Market scope to analyze"),
     asOfDate: z.string().describe("Date for the analysis"),
-    timeRange: z.enum(["1d", "3d", "1w"]).optional().describe("Time range for news analysis"),
+    timeRange: z
+      .enum(["1d", "3d", "1w"])
+      .optional()
+      .describe("Time range for news analysis"),
   });
 
   async execute(params: Record<string, unknown>): Promise<unknown> {

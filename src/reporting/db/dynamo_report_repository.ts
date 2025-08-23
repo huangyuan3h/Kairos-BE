@@ -1,7 +1,7 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
-import type { OverallReport } from "../domain/types";
-import type { ReportRepository } from "./contracts";
+import type { ReportRepository } from "../types/contracts";
+import type { OverallReport } from "../types/domain";
 
 export function createDynamoReportRepository(params: {
   tableName: string;

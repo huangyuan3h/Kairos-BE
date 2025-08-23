@@ -17,13 +17,13 @@ This document summarizes the refactoring work completed to prepare the codebase 
 **Before:**
 
 ```typescript
-import { ... } from "../../../../src/reporting/application/generate_overall_report";
+import { ... } from "../../../../src/reporting/business/generate_overall_report";
 ```
 
 **After:**
 
 ```typescript
-import { ... } from "@src/reporting/application/generate_overall_report";
+import { ... } from "@src/reporting/business/generate_overall_report";
 ```
 
 ### 2. Parameter Cleanup ✅
@@ -36,7 +36,7 @@ import { ... } from "@src/reporting/application/generate_overall_report";
 
 ### 3. AI Agent Tools Architecture ✅
 
-- **Created `src/reporting/application/tools.ts`** with comprehensive tool interfaces:
+- **Created `src/reporting/business/tools.ts`** with comprehensive tool interfaces:
   - `MarketAnalysisTool` - Market data analysis
   - `NewsSentimentTool` - News sentiment analysis
   - `RiskAssessmentTool` - Risk and opportunity assessment
@@ -111,17 +111,17 @@ import { ... } from "@src/reporting/application/generate_overall_report";
 
 ## Files Created
 
-- `src/reporting/application/tools.ts` - Tool interfaces
+- `src/reporting/business/tools.ts` - Tool interfaces
 - `docs/development/path-aliases.md` - Path alias documentation
 - `docs/development/ai-agent-architecture.md` - Architecture documentation
 - `docs/development/refactoring-summary.md` - This summary
 
 ## Files Modified
 
-- `src/reporting/application/generate_overall_report.ts` - Refactored for AI agent
+- `src/reporting/business/generate_overall_report.ts` - Refactored for AI agent
 - `src/reporting/infrastructure/contracts.ts` - Cleaned up interfaces
 - `functions/src/handlers/node/overall_report.ts` - Updated parameters
-- `src/reporting/application/__tests__/generate_overall_report.test.ts` - Updated tests
+- `src/reporting/business/__tests__/generate_overall_report.test.ts` - Updated tests
 
 ## Impact Assessment
 
