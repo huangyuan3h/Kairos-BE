@@ -14,7 +14,7 @@
     "paths": {
       "@src/*": ["src/*"],
       "@/ai-tools": ["src/ai-tools/index"],
-      "@/ai/*": ["src/ai-agent/*"]
+      "@/ai-agent/*": ["src/ai-agent/*"]
     }
   },
   "include": ["sst.config.ts", "src/**/*.ts", "functions/**/*.ts"],

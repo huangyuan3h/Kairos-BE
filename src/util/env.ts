@@ -23,7 +23,7 @@ export function isLocal(): boolean {
   const sstDev =
     process.env.SST_DEV === "true" || process.env.IS_LOCAL === "true";
   const isLambda = Boolean(
-    process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.AWS_EXECUTION_ENV
+    process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.AWS_EXECUTION_ENV,
   );
   return sstDev || !isLambda;
 }
@@ -42,14 +42,14 @@ export interface GetEnvVarOptions<T> {
  */
 export function getEnvVar<T = string>(
   name: string,
-  options: GetEnvVarOptions<T> = {}
+  options: GetEnvVarOptions<T> = {},
 ): T {
   const stage = getStage();
   const stageKey = `${name}__${stage}`;
   const stageAware = options.stageAware !== false; // default true
 
   const candidate = stageAware
-    ? process.env[stageKey] ?? process.env[name]
+    ? (process.env[stageKey] ?? process.env[name])
     : process.env[name];
 
   if (candidate != null && candidate !== "") {

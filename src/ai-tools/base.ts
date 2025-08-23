@@ -35,7 +35,7 @@ export abstract class BaseAiTool implements AiTool {
       throw new Error(
         `Tool "${this.name}" failed: ${
           error instanceof Error ? error.message : String(error)
-        }`
+        }`,
       );
     }
   }

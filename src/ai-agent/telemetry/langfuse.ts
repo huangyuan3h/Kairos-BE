@@ -14,7 +14,7 @@ export function getLangfuse(): Langfuse | null {
 
 export async function withTrace<T>(
   name: string,
-  fn: () => Promise<T>
+  fn: () => Promise<T>,
 ): Promise<T> {
   const lf = getLangfuse();
   if (!lf) return fn();

@@ -30,7 +30,7 @@ export interface AiAgentConfig {
 // AI Agent interface
 export interface AiAgent {
   chat: (
-    messages: Array<{ role: "user" | "assistant"; content: string }>
+    messages: Array<{ role: "user" | "assistant"; content: string }>,
   ) => Promise<any>;
   generate: (prompt: string) => Promise<any>;
 }
@@ -65,7 +65,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
           if (langfuse) {
             const span = langfuse.span({
               name: `tool_execution_${tool.name}`,
-              input: input,
+              input,
               metadata: { tool: tool.name },
             });
             try {
@@ -96,7 +96,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
   const withTracing = async <T>(
     operation: string,
     fn: () => Promise<T>,
-    metadata?: Record<string, any>
+    metadata?: Record<string, any>,
   ): Promise<T> => {
     const langfuse = getLangfuse();
     if (!langfuse) return fn();
@@ -130,7 +130,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
 
   // Chat method with different output formats
   const chat = async (
-    messages: Array<{ role: "user" | "assistant"; content: string }>
+    messages: Array<{ role: "user" | "assistant"; content: string }>,
   ) => {
     return withTracing("chat", async () => {
       const toolDefinitions = createToolDefinitions();
@@ -196,21 +196,21 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
 
 // Utility function to create a simple text-only agent
 export function createTextAgent(
-  config: Omit<AiAgentConfig, "outputFormat"> = {}
+  config: Omit<AiAgentConfig, "outputFormat"> = {},
 ): AiAgent {
   return createAiAgent({ ...config, outputFormat: "text" });
 }
 
 // Utility function to create a streaming agent
 export function createStreamingAgent(
-  config: Omit<AiAgentConfig, "outputFormat"> = {}
+  config: Omit<AiAgentConfig, "outputFormat"> = {},
 ): AiAgent {
   return createAiAgent({ ...config, outputFormat: "stream-text" });
 }
 
 // Utility function to create an object-generating agent
 export function createObjectAgent(
-  config: Omit<AiAgentConfig, "outputFormat"> = {}
+  config: Omit<AiAgentConfig, "outputFormat"> = {},
 ): AiAgent {
   return createAiAgent({ ...config, outputFormat: "object" });
 }

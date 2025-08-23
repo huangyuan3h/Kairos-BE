@@ -31,7 +31,7 @@ export function createDynamoReportRepository(params: {
             promptVersion: report.promptVersion,
             modelVersion: report.modelVersion,
           },
-        })
+        }),
       );
     },
   };

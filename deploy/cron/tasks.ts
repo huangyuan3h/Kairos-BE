@@ -4,7 +4,7 @@
  */
 export function createCronJobs(
   linkables: { linkableValue: any },
-  database: { marketDataTable: any; reportsTable: any }
+  database: { marketDataTable: any; reportsTable: any },
 ) {
   // No Lambda Layer: Python deps are handled by container packaging
 

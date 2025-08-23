@@ -37,9 +37,9 @@ export const OverallReportZodSchema = z.object({
           z.object({
             source: z.string(),
             description: z.string(),
-          })
+          }),
         ),
-      })
+      }),
     )
     .default([]),
   risks: z
@@ -53,9 +53,9 @@ export const OverallReportZodSchema = z.object({
           z.object({
             source: z.string(),
             description: z.string(),
-          })
+          }),
         ),
-      })
+      }),
     )
     .default([]),
 });
