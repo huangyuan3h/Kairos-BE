@@ -43,7 +43,7 @@
 
 ### 环境变量
 
-- `GEMINI_API_KEY`：Google Gemini API 密钥
+- `GOOGLE_GENERATIVE_AI_API_KEY`：Google Gemini API 密钥
 
 ### 部署配置
 
@@ -124,13 +124,13 @@ npm test
 
 ### 本地测试
 
-1. 设置 `GEMINI_API_KEY` 环境变量
+1. 设置 `GOOGLE_GENERATIVE_AI_API_KEY` 环境变量
 2. 运行 `npm test` 验证功能
 3. 使用 `npx tsc --noEmit` 检查类型
 
 ### 生产部署
 
-1. 确保 `GEMINI_API_KEY` 在部署环境中可用
+1. 确保 `GOOGLE_GENERATIVE_AI_API_KEY` 在部署环境中可用
 2. 部署 Lambda 函数和定时任务
 3. 监控日志和错误
 

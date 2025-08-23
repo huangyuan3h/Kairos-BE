@@ -55,7 +55,7 @@ export class AiAgent {
 ### 环境变量
 
 - **移除**：`APP_NAME`（现在硬编码为 "kairos-be"）
-- **保留**：`GEMINI_API_KEY`（用于 AI 调用）
+- **保留**：`GOOGLE_GENERATIVE_AI_API_KEY`（用于 AI 调用）
 - **新增**：自动设置 `GOOGLE_GENERATIVE_AI_API_KEY`
 
 ### 依赖更新
@@ -63,9 +63,9 @@ export class AiAgent {
 ```json
 {
   "dependencies": {
-    "ai": "^5.0.0",           // 升级到版本 5
+    "ai": "^5.0.0", // 升级到版本 5
     "@ai-sdk/google": "^1.0.0", // 新增 Google provider
-    "zod": "^3.25.76"         // 升级到兼容版本
+    "zod": "^3.25.76" // 升级到兼容版本
   }
 }
 ```
@@ -98,7 +98,7 @@ export class AiAgent {
 environment: {
   MARKET_DATA_TABLE: database.marketDataTable.name,
   REPORTS_TABLE_NAME: database.reportsTable.name,
-  GEMINI_API_KEY: process.env.GEMINI_API_KEY || "",
+  GOOGLE_GENERATIVE_AI_API_KEY: process.env.GOOGLE_GENERATIVE_AI_API_KEY || "",
 }
 ```
 
