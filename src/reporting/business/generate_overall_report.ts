@@ -1,6 +1,7 @@
 import { getLangfuse } from "@src/ai-agent";
 import { createObjectAgentWithSchema } from "@src/ai-agent/agent";
 import { DynamoTable, getDynamoTableName } from "@src/util/dynamodb";
+import "dotenv/config";
 import { z } from "zod";
 import { createDynamoReportRepository } from "../db/dynamo_report_repository";
 import type { OverallReport } from "../types/domain";
@@ -18,7 +19,7 @@ const reportSchema = z.object({
   content: z
     .string()
     .describe(
-      "Detailed market analysis content in Chinese, including investment suggestions and market insights",
+      "Detailed market analysis content in Chinese, including investment suggestions and market insights"
     ),
 });
 
@@ -38,7 +39,7 @@ export async function generateOverallReport(): Promise<OverallReport> {
   const prompt = await langfuse.getPrompt("report/overall_system");
   if (!prompt?.prompt) {
     throw new Error(
-      "System prompt 'report/overall_system' not found in Langfuse",
+      "System prompt 'report/overall_system' not found in Langfuse"
     );
   }
 

@@ -10,17 +10,6 @@ export {
   type OutputFormat,
 } from "./agent";
 
-// Example tools
-export {
-  allTools,
-  basicTools,
-  calculatorTool,
-  fileTool,
-  fileTools,
-  weatherTool,
-  weatherTools,
-} from "./tools/example-tools";
-
 // Configuration
 export { loadAiConfig, type AiConfig } from "./config";
 
