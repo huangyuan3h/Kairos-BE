@@ -10,6 +10,32 @@ permissions:
   contents: read
 
 jobs:
+  nodejs-tests:
+    name: Node.js lint and tests (bun)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Setup bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Run lint
+        run: bun run lint
+
+      - name: Run tests
+        run: bun run test
+
   python-tests:
     name: Python unit tests (uv)
     runs-on: ubuntu-latest

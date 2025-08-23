@@ -4,7 +4,7 @@
  */
 export function createCronJobs(
   linkables: { linkableValue: any },
-  database: { marketDataTable: any }
+  database: { marketDataTable: any; reportsTable: any },
 ) {
   // No Lambda Layer: Python deps are handled by container packaging
 
@@ -15,7 +15,7 @@ export function createCronJobs(
     schedule: "cron(0 0 1 * ? *)",
     function: {
       // Use absolute handler path; SST will package its directory for Python
-      handler: "functions/src/functions/sync_market_data.handler",
+      handler: "functions/python/sync_market_data.handler",
       runtime: "python3.11",
       python: { container: true },
       timeout: "15 minutes",
@@ -28,7 +28,24 @@ export function createCronJobs(
     },
   });
 
+  // Generate CN stock market overall report daily at 01:00 UTC
+  const overallReport = new sst.aws.Cron("GenerateOverallReport", {
+    // Runs at 01:00 UTC every day
+    schedule: "cron(0 1 * * ? *)",
+    function: {
+      handler: "functions/nodejs/overall_report.handler",
+      runtime: "nodejs20.x",
+      timeout: "15 minutes",
+      memory: "1024 MB",
+      link: [database.marketDataTable, database.reportsTable],
+      environment: {
+        GEMINI_API_KEY: process.env.GEMINI_API_KEY || "",
+      },
+    },
+  });
+
   return {
     syncMarketData,
+    overallReport,
   };
 }
