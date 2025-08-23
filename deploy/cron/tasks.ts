@@ -15,7 +15,7 @@ export function createCronJobs(
     schedule: "cron(0 0 1 * ? *)",
     function: {
       // Use absolute handler path; SST will package its directory for Python
-      handler: "functions/src/functions/sync_market_data.handler",
+      handler: "functions/python/sync_market_data.handler",
       runtime: "python3.11",
       python: { container: true },
       timeout: "15 minutes",
@@ -33,7 +33,7 @@ export function createCronJobs(
     // Runs at 01:00 UTC every day
     schedule: "cron(0 1 * * ? *)",
     function: {
-      handler: "functions/src/handlers/node/overall_report.handler",
+      handler: "functions/nodejs/overall_report.handler",
       runtime: "nodejs20.x",
       timeout: "15 minutes",
       memory: "1024 MB",
