@@ -4,20 +4,11 @@ import type { OverallReport } from "../types/domain";
 import { createAiAgent } from "./ai_agent";
 import { createMarketDataTool, createNewsTool } from "./tools";
 
-export interface GenerateOverallReportInput {
-  asOfDate: string;
-  marketScope: "CN" | "US" | "GLOBAL";
-  systemPrompt: string;
-  geminiApiKey: string;
-}
-
 /**
  * AI Agent-driven overall report generation workflow.
  * Uses Gemini 2.5 Flash to generate reports with available tools.
  */
-export async function generateOverallReport(
-  input?: GenerateOverallReportInput
-): Promise<OverallReport> {
+export async function generateOverallReport(): Promise<OverallReport> {
   // Get configuration from environment variables
   const geminiApiKey = process.env.GEMINI_API_KEY;
   if (!geminiApiKey) {
@@ -44,7 +35,7 @@ export async function generateOverallReport(
 - 使用专业的投资分析术语`;
 
   // Use provided input or create default configuration
-  const config = input || {
+  const config = {
     asOfDate: new Date().toISOString().slice(0, 10),
     marketScope: "CN" as const,
     systemPrompt,
