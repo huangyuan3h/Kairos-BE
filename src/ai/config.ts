@@ -1,7 +1,7 @@
 import { getEnvVar, getStage, getString, isProduction } from "../util/env";
 
 export interface AiConfig {
-  provider: "openai"; // extend when adding more
+  provider: "google" | "openai"; // extend when adding more
   model: string;
   apiKey: string | undefined;
   stage: string;
@@ -10,9 +10,9 @@ export interface AiConfig {
 
 export function loadAiConfig(): AiConfig {
   const provider =
-    (getString("MODEL_PROVIDER", "openai") as AiConfig["provider"]) || "openai";
-  const model = getString("MODEL_NAME", "gpt-4o-mini");
-  const apiKey = getEnvVar<string | undefined>("OPENAI_API_KEY", {
+    (getString("MODEL_PROVIDER", "google") as AiConfig["provider"]) || "google";
+  const model = getString("MODEL_NAME", "gemini-2.0-flash-exp");
+  const apiKey = getEnvVar<string | undefined>("GEMINI_API_KEY", {
     defaultValue: undefined,
   });
   const stage = getStage();
