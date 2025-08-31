@@ -39,11 +39,9 @@ export interface AiAgent {
 // Factory function to create AI agent
 export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
   const {
-    model = "gemini-2.0-flash-exp",
+    model = "gemini-2.5-flash",
     tools = [],
     outputFormat = "text",
-    temperature = 0.7,
-    maxTokens = 1000,
     systemPrompt = "You are a helpful AI assistant.",
     schema = defaultObjectSchema,
   } = config;
@@ -143,8 +141,6 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
             model: googleModel,
             messages,
             tools: toolDefinitions?.length > 0 ? toolDefinitions : undefined,
-            temperature,
-            maxOutputTokens: maxTokens,
             system: systemPrompt,
           });
 
@@ -153,8 +149,6 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
             model: googleModel,
             messages,
             schema: schema as any,
-            temperature,
-            maxOutputTokens: maxTokens,
             system: systemPrompt,
           } as any);
 
@@ -163,8 +157,6 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
             model: googleModel,
             messages,
             schema: schema as any,
-            temperature,
-            maxOutputTokens: maxTokens,
             system: systemPrompt,
           } as any);
 
@@ -174,8 +166,6 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
             model: googleModel,
             messages,
             tools: toolDefinitions?.length > 0 ? toolDefinitions : undefined,
-            temperature,
-            maxOutputTokens: maxTokens,
             system: systemPrompt,
           });
       }
