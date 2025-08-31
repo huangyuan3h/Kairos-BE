@@ -2,11 +2,19 @@
  * Cron job configurations
  * Manages all scheduled tasks and background jobs
  */
-export function createCronJobs(
+import { getGeminiApiKey, getLangfuseSecrets } from "../secrets";
+
+export async function createCronJobs(
   linkables: { linkableValue: any },
   database: { marketDataTable: any; reportsTable: any }
 ) {
   // No Lambda Layer: Python deps are handled by container packaging
+
+  // Load third-party secrets once for all scheduled functions
+  const [geminiApiKey, langfuse] = await Promise.all([
+    getGeminiApiKey(),
+    getLangfuseSecrets(),
+  ]);
 
   // Synchronize CN & US stock catalogs monthly on the 1st (00:00 UTC)
   const syncMarketData = new sst.aws.Cron("SyncMarketData", {
@@ -39,11 +47,10 @@ export function createCronJobs(
       memory: "1024 MB",
       link: [database.marketDataTable, database.reportsTable],
       environment: {
-        GOOGLE_GENERATIVE_AI_API_KEY:
-          process.env.GOOGLE_GENERATIVE_AI_API_KEY || "",
-        LANGFUSE_PUBLIC_KEY: process.env.LANGFUSE_PUBLIC_KEY || "",
-        LANGFUSE_SECRET_KEY: process.env.LANGFUSE_SECRET_KEY || "",
-        LANGFUSE_HOST: process.env.LANGFUSE_HOST || "",
+        GOOGLE_GENERATIVE_AI_API_KEY: geminiApiKey,
+        LANGFUSE_PUBLIC_KEY: langfuse.LANGFUSE_PUBLIC_KEY,
+        LANGFUSE_SECRET_KEY: langfuse.LANGFUSE_SECRET_KEY,
+        LANGFUSE_HOST: langfuse.LANGFUSE_HOST,
       },
     },
   });

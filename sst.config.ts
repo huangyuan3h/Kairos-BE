@@ -14,7 +14,7 @@ export default $config({
     const { createInfrastructure } = await import("./deploy");
 
     // Create all infrastructure resources using modular configuration
-    const infrastructure = createInfrastructure();
+    const infrastructure = await createInfrastructure();
 
     // Export resources for potential use in other parts of the application
     return {
