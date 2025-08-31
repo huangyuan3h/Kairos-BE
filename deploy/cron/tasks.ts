@@ -36,10 +36,10 @@ export async function createCronJobs(
     },
   });
 
-  // Generate CN stock market overall report daily at 01:00 UTC
+  // Generate CN stock market overall report daily at 18:00 China time (10:00 UTC)
   const overallReport = new sst.aws.Cron("GenerateOverallReport", {
-    // Runs at 01:00 UTC every day
-    schedule: "cron(0 1 * * ? *)",
+    // Runs at 10:00 UTC (18:00 China time) every day
+    schedule: "cron(0 10 * * ? *)",
     function: {
       handler: "functions/nodejs/overall_report.handler",
       runtime: "nodejs20.x",
@@ -47,6 +47,7 @@ export async function createCronJobs(
       memory: "1024 MB",
       link: [database.marketDataTable, database.reportsTable],
       environment: {
+        STAGE: $app.stage, // Explicitly set stage for proper table name resolution
         GOOGLE_GENERATIVE_AI_API_KEY: geminiApiKey,
         LANGFUSE_PUBLIC_KEY: langfuse.LANGFUSE_PUBLIC_KEY,
         LANGFUSE_SECRET_KEY: langfuse.LANGFUSE_SECRET_KEY,
