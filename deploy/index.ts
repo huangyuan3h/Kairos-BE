@@ -5,7 +5,7 @@ import { createLinkables } from "./shared/linkables";
  * Main deployment configuration
  * Orchestrates all infrastructure resources
  */
-export function createInfrastructure() {
+export async function createInfrastructure() {
   // Create shared resources first
   const linkables = createLinkables();
 
@@ -20,7 +20,7 @@ export function createInfrastructure() {
   // const graphqlApi = createGraphQLApi(linkables);
 
   // Create cron jobs (requires linkables & database)
-  const cronJobs = createCronJobs(linkables, database);
+  const cronJobs = await createCronJobs(linkables, database);
 
   return {
     linkables,
