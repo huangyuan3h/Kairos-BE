@@ -235,7 +235,3 @@ export function createObjectAgentWithSchema(
 // const result = await agent.generate("Extract info from: John Doe, 30 years old, john@example.com");
 // // Result will be: { name: "John Doe", age: 30, email: "john@example.com" }
 // ```
-
-// Test line with formatting issues
-const _testVariable = "test";
-const _anotherTest = 123;
