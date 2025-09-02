@@ -1,3 +1,4 @@
+import { createRestApi } from "./api/rest";
 import { createCronJobs } from "./cron/tasks";
 import { createDatabase } from "./database/dynamodb";
 import { createLinkables } from "./shared/linkables";
@@ -16,7 +17,7 @@ export async function createInfrastructure() {
   // const auth = createAuth();
 
   // Create API resources
-  // const restApi = createRestApi(linkables);
+  const restApi = createRestApi(linkables);
   // const graphqlApi = createGraphQLApi(linkables);
 
   // Create cron jobs (requires linkables & database)
@@ -26,7 +27,7 @@ export async function createInfrastructure() {
     linkables,
     database,
     // auth,
-    // restApi,
+    restApi,
     // graphqlApi,
     cronJobs,
   };

@@ -25,4 +25,15 @@ export interface NewsProvider {
  */
 export interface ReportRepository {
   save(report: OverallReport): Promise<void>;
+  findByType(params: {
+    type: string;
+    currentPage: number;
+    pageSize: number;
+  }): Promise<{
+    reports: OverallReport[];
+    totalCount: number;
+    currentPage: number;
+    pageSize: number;
+    totalPages: number;
+  }>;
 }

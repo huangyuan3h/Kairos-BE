@@ -1,5 +1,9 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
+import {
+  DynamoDBDocumentClient,
+  PutCommand,
+  QueryCommand,
+} from "@aws-sdk/lib-dynamodb";
 import type { ReportRepository } from "../types/contracts";
 import type { OverallReport } from "../types/domain";
 
@@ -28,6 +32,77 @@ export function createDynamoReportRepository(params: {
           },
         }),
       );
+    },
+
+    async findByType(params: {
+      type: string;
+      currentPage: number;
+      pageSize: number;
+    }): Promise<{
+      reports: OverallReport[];
+      totalCount: number;
+      currentPage: number;
+      pageSize: number;
+      totalPages: number;
+    }> {
+      const { type, currentPage, pageSize } = params;
+
+      // For now, only support "overall" type
+      if (type !== "overall") {
+        throw new Error(`Unsupported report type: ${type}`);
+      }
+
+      const pk = `REPORT#OVERALL`;
+
+      // Calculate pagination
+      const limit = pageSize;
+
+      try {
+        // Query for reports with pagination
+        const queryCommand = new QueryCommand({
+          TableName: tableName,
+          KeyConditionExpression: "pk = :pk",
+          ExpressionAttributeValues: {
+            ":pk": pk,
+          },
+          ScanIndexForward: false, // Sort by sort key in descending order (newest first)
+          Limit: limit,
+        });
+
+        const result = await doc.send(queryCommand);
+
+        // Convert DynamoDB items to OverallReport objects
+        const reports: OverallReport[] = (result.Items || []).map(
+          (item: any) => ({
+            reportId: item.reportId,
+            asOfDate: item.asOfDate,
+            title: item.title,
+            content: item.content,
+            createdAt: item.createdAt,
+          }),
+        );
+
+        // For simplicity, we'll use the count of returned items as total count
+        // In a production system, you might want to implement a separate count query
+        // or use a GSI with a different access pattern for better performance
+        const totalCount = reports.length;
+        const totalPages = Math.ceil(totalCount / pageSize);
+
+        return {
+          reports,
+          totalCount,
+          currentPage,
+          pageSize,
+          totalPages,
+        };
+      } catch (error) {
+        // Log error for debugging purposes
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        throw new Error(
+          `Failed to retrieve reports from database: ${errorMessage}`,
+        );
+      }
     },
   };
 }
