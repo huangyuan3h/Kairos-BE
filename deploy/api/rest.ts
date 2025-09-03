@@ -36,21 +36,21 @@ export function createRestApi(
           dns: sst.cloudflare.dns(),
         }
       : undefined,
-    routes: {
-      "GET /reports": {
-        function: {
-          handler: "functions/nodejs/get_report.handler",
-          runtime: "nodejs20.x",
-          link: [linkables.linkableValue],
-        },
-      },
-      "GET /reports/{id}": {
-        function: {
-          handler: "functions/nodejs/get_report_by_id.handler",
-          runtime: "nodejs20.x",
-          link: [linkables.linkableValue],
-        },
-      },
+  });
+
+  api.route("GET /reports", {
+    function: {
+      handler: "functions/nodejs/get_report.handler",
+      runtime: "nodejs20.x",
+      link: [linkables.linkableValue],
+    },
+  });
+
+  api.route("GET /reports/{id}", {
+    function: {
+      handler: "functions/nodejs/get_report_by_id.handler",
+      runtime: "nodejs20.x",
+      link: [linkables.linkableValue],
     },
   });
 
