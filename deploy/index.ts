@@ -6,7 +6,7 @@ import { createLinkables } from "./shared/linkables";
  * Main deployment configuration
  * Orchestrates all infrastructure resources
  */
-export async function createInfrastructure() {
+export async function createInfrastructure(env?: { isProduction?: boolean }) {
   // Create shared resources first
   const linkables = createLinkables();
 
@@ -17,7 +17,9 @@ export async function createInfrastructure() {
   // const auth = createAuth();
 
   // Create API resources
-  const restApi = createRestApi(linkables);
+  const restApi = createRestApi(linkables, {
+    isProduction: env?.isProduction === true,
+  });
   // const graphqlApi = createGraphQLApi(linkables);
 
   // Create cron jobs (requires linkables & database)

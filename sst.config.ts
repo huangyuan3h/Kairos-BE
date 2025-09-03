@@ -13,8 +13,10 @@ export default $config({
     // Dynamically import the infrastructure configuration
     const { createInfrastructure } = await import("./deploy");
 
+    const isProduction = $app.stage === "prod";
+
     // Create all infrastructure resources using modular configuration
-    const infrastructure = await createInfrastructure();
+    const infrastructure = await createInfrastructure({ isProduction });
 
     // Export resources for potential use in other parts of the application
     return {
