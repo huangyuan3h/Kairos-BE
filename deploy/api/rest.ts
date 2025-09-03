@@ -11,6 +11,25 @@ export function createRestApi(
 ) {
   // Main REST API gateway
   const api = new sst.aws.ApiGatewayV2("MainApi", {
+    cors: {
+      allowOrigins: [
+        "http://localhost:3000",
+        "https://kairos-2.it-t.xyz",
+        "https://www.kairos-2.it-t.xyz",
+      ],
+      allowMethods: [
+        "GET",
+        "POST",
+        "PUT",
+        "PATCH",
+        "DELETE",
+        "OPTIONS",
+        "HEAD",
+      ],
+      allowHeaders: ["*"],
+      exposeHeaders: [],
+      maxAge: "1 day",
+    },
     domain: options?.isProduction
       ? {
           name: "api.kairos-2.it-t.xyz",
