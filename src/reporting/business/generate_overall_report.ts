@@ -67,8 +67,18 @@ export async function generateOverallReport(): Promise<OverallReport> {
   // Generate structured report object using AI agent
   const response = await aiAgent.generate("");
 
-  // Extract structured data from response (now type-safe due to schema)
-  const reportData = response as { title: string; content: string };
+  // Extract structured data from response
+  // Note: ai.generateObject returns an object with the parsed payload on `object`
+  // We defensively support both shapes to avoid silent undefined writes
+  const parsed: any = (response as any)?.object ?? response;
+  const reportData = {
+    title: parsed?.title,
+    content: parsed?.content,
+  } as { title: string; content: string };
+
+  if (!reportData?.title || !reportData?.content) {
+    throw new Error("AI agent did not return required fields: title/content");
+  }
 
   // Generate unique report ID using timestamp and random suffix
   const timestamp = Date.now();
