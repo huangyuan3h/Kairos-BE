@@ -100,3 +100,39 @@ export async function getReportSummaries(
 
   return result;
 }
+
+export interface GetReportByIdParams {
+  type: string;
+  reportId: string;
+}
+
+/**
+ * Get a report by ID, including content.
+ * Intended for detail page. Shared by REST/GraphQL.
+ */
+export async function getReportById(params: GetReportByIdParams): Promise<{
+  reportId: string;
+  asOfDate: string;
+  title: string;
+  content: string;
+  createdAt: string;
+}> {
+  const { type, reportId } = params;
+
+  if (type !== "overall") {
+    throw new Error(
+      `Unsupported report type: ${type}. Currently only "overall" type is supported.`,
+    );
+  }
+
+  const repo = createDynamoReportRepository({
+    tableName: getDynamoTableName(DynamoTable.Reports),
+  });
+
+  const report = await repo.findById({ type, reportId });
+  if (!report) {
+    throw new Error("Report not found");
+  }
+
+  return report;
+}

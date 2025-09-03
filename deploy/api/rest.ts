@@ -16,6 +16,13 @@ export function createRestApi(linkables: { linkableValue: any }) {
           link: [linkables.linkableValue],
         },
       },
+      "GET /reports/{id}": {
+        function: {
+          handler: "functions/nodejs/get_report_by_id.handler",
+          runtime: "nodejs20.x",
+          link: [linkables.linkableValue],
+        },
+      },
     },
   });
 
