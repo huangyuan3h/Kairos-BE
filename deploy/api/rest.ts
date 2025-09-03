@@ -7,7 +7,7 @@
 declare const sst: any;
 export function createRestApi(
   linkables: { linkableValue: any },
-  options?: { isProduction?: boolean }
+  options?: { isProduction?: boolean; stage?: string }
 ) {
   // Main REST API gateway
   const api = new sst.aws.ApiGatewayV2("MainApi", {
@@ -42,12 +42,18 @@ export function createRestApi(
     handler: "functions/nodejs/get_report.handler",
     runtime: "nodejs20.x",
     link: [linkables.linkableValue],
+    environment: {
+      STAGE: options?.stage ?? "dev",
+    },
   });
 
   api.route("GET /reports/{id}", {
     handler: "functions/nodejs/get_report_by_id.handler",
     runtime: "nodejs20.x",
     link: [linkables.linkableValue],
+    environment: {
+      STAGE: options?.stage ?? "dev",
+    },
   });
 
   return {

@@ -6,7 +6,10 @@ import { createLinkables } from "./shared/linkables";
  * Main deployment configuration
  * Orchestrates all infrastructure resources
  */
-export async function createInfrastructure(env?: { isProduction?: boolean }) {
+export async function createInfrastructure(env?: {
+  isProduction?: boolean;
+  stage?: string;
+}) {
   // Create shared resources first
   const linkables = createLinkables();
 
@@ -19,6 +22,7 @@ export async function createInfrastructure(env?: { isProduction?: boolean }) {
   // Create API resources
   const restApi = createRestApi(linkables, {
     isProduction: env?.isProduction === true,
+    stage: env?.stage,
   });
   // const graphqlApi = createGraphQLApi(linkables);
 
