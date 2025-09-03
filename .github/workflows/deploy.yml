@@ -61,4 +61,6 @@ jobs:
       - name: SST deploy
         env:
           SST_TELEMETRY_DISABLED: "1"
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_DEFAULT_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
         run: bun sst deploy --stage $SST_STAGE | cat
