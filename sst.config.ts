@@ -16,7 +16,10 @@ export default $config({
     const isProduction = $app.stage === "prod";
 
     // Create all infrastructure resources using modular configuration
-    const infrastructure = await createInfrastructure({ isProduction });
+    const infrastructure = await createInfrastructure({
+      isProduction,
+      stage: $app.stage,
+    });
 
     // Export resources for potential use in other parts of the application
     return {
