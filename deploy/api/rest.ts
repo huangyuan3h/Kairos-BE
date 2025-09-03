@@ -7,6 +7,7 @@
 declare const sst: any;
 export function createRestApi(
   linkables: { linkableValue: any },
+  database: { reportsTable: any; marketDataTable?: any },
   options?: { isProduction?: boolean; stage?: string }
 ) {
   // Main REST API gateway
@@ -41,18 +42,20 @@ export function createRestApi(
   api.route("GET /reports", {
     handler: "functions/nodejs/get_report.handler",
     runtime: "nodejs20.x",
-    link: [linkables.linkableValue],
+    link: [linkables.linkableValue, database.reportsTable],
     environment: {
       STAGE: options?.stage ?? "dev",
+      REPORTS_TABLE: database.reportsTable.name,
     },
   });
 
   api.route("GET /reports/{id}", {
     handler: "functions/nodejs/get_report_by_id.handler",
     runtime: "nodejs20.x",
-    link: [linkables.linkableValue],
+    link: [linkables.linkableValue, database.reportsTable],
     environment: {
       STAGE: options?.stage ?? "dev",
+      REPORTS_TABLE: database.reportsTable.name,
     },
   });
 

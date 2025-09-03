@@ -20,7 +20,7 @@ export async function createInfrastructure(env?: {
   // const auth = createAuth();
 
   // Create API resources
-  const restApi = createRestApi(linkables, {
+  const restApi = createRestApi(linkables, database, {
     isProduction: env?.isProduction === true,
     stage: env?.stage,
   });
