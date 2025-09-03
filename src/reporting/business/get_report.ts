@@ -59,3 +59,44 @@ export async function getReports(
 
   return result;
 }
+
+export interface GetReportSummariesResult {
+  reports: Array<{
+    reportId: string;
+    asOfDate: string;
+    title: string;
+    createdAt: string;
+  }>;
+  totalCount: number;
+  currentPage: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+/**
+ * Get report summaries (without content) with pagination support.
+ * Designed to be shared by REST and future GraphQL resolvers.
+ */
+export async function getReportSummaries(
+  params: GetReportsParams,
+): Promise<GetReportSummariesResult> {
+  const { type, currentPage, pageSize } = params;
+
+  if (type !== "overall") {
+    throw new Error(
+      `Unsupported report type: ${type}. Currently only "overall" type is supported.`,
+    );
+  }
+
+  const repo = createDynamoReportRepository({
+    tableName: getDynamoTableName(DynamoTable.Reports),
+  });
+
+  const result = await repo.findSummariesByType({
+    type,
+    currentPage,
+    pageSize,
+  });
+
+  return result;
+}

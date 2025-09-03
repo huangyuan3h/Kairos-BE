@@ -5,7 +5,7 @@ import {
   QueryCommand,
 } from "@aws-sdk/lib-dynamodb";
 import type { ReportRepository } from "../types/contracts";
-import type { OverallReport } from "../types/domain";
+import type { OverallReport, ReportSummary } from "../types/domain";
 
 export function createDynamoReportRepository(params: {
   tableName: string;
@@ -101,6 +101,68 @@ export function createDynamoReportRepository(params: {
           error instanceof Error ? error.message : "Unknown error";
         throw new Error(
           `Failed to retrieve reports from database: ${errorMessage}`,
+        );
+      }
+    },
+
+    async findSummariesByType(params: {
+      type: string;
+      currentPage: number;
+      pageSize: number;
+    }): Promise<{
+      reports: ReportSummary[];
+      totalCount: number;
+      currentPage: number;
+      pageSize: number;
+      totalPages: number;
+    }> {
+      const { type, currentPage, pageSize } = params;
+
+      if (type !== "overall") {
+        throw new Error(`Unsupported report type: ${type}`);
+      }
+
+      const pk = `REPORT#OVERALL`;
+      const limit = pageSize;
+
+      try {
+        const queryCommand = new QueryCommand({
+          TableName: tableName,
+          KeyConditionExpression: "pk = :pk",
+          ExpressionAttributeValues: {
+            ":pk": pk,
+          },
+          ProjectionExpression: "reportId, asOfDate, title, createdAt",
+          ScanIndexForward: false,
+          Limit: limit,
+        });
+
+        const result = await doc.send(queryCommand);
+
+        const reports: ReportSummary[] = (result.Items || []).map(
+          (item: any) => ({
+            reportId: item.reportId,
+            asOfDate: item.asOfDate,
+            title: item.title,
+            createdAt: item.createdAt,
+          }),
+        );
+
+        const totalCount = reports.length;
+        const totalPages = Math.ceil(totalCount / pageSize);
+
+        return {
+          reports,
+          totalCount,
+          currentPage,
+          pageSize,
+          totalPages,
+        };
+      } catch (error) {
+        const errorMessage =
+          error instanceof Error ? error.message : "Unknown error";
+        throw new Error(
+          `Failed to retrieve report summaries from database: ${errorMessage}`,
         );
       }
     },

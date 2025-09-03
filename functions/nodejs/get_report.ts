@@ -1,7 +1,7 @@
 // Lambda handler for getting reports with pagination (Node.js)
 // This is a thin wrapper that delegates to the reporting application layer.
 
-import { getReports } from "../../src/reporting/business/get_report";
+import { getReportSummaries } from "../../src/reporting/business/get_report";
 
 /**
  * AWS Lambda entrypoint for getting reports with pagination.
@@ -34,8 +34,8 @@ export const handler = async (event: any) => {
       };
     }
 
-    // Call business logic
-    const result = await getReports({
+    // Call business logic (summaries only, no content)
+    const result = await getReportSummaries({
       type,
       currentPage,
       pageSize,

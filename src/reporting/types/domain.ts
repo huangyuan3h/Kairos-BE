@@ -21,3 +21,10 @@ export interface OverallReport {
   content: string;
   createdAt: string;
 }
+
+export interface ReportSummary {
+  reportId: string;
+  asOfDate: string;
+  title: string;
+  createdAt: string;
+}

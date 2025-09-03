@@ -1,4 +1,4 @@
-import type { OverallReport } from "./domain";
+import type { OverallReport, ReportSummary } from "./domain";
 
 /**
  * Market data reader interface
@@ -31,6 +31,17 @@ export interface ReportRepository {
     pageSize: number;
   }): Promise<{
     reports: OverallReport[];
+    totalCount: number;
+    currentPage: number;
+    pageSize: number;
+    totalPages: number;
+  }>;
+  findSummariesByType(params: {
+    type: string;
+    currentPage: number;
+    pageSize: number;
+  }): Promise<{
+    reports: ReportSummary[];
     totalCount: number;
     currentPage: number;
     pageSize: number;
