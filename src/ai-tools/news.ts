@@ -15,28 +15,67 @@ import { defineTool, ToolCategory } from "./base";
  */
 
 const inputSchema = z.object({
-  marketScope: z.enum(["CN", "US", "GLOBAL"]),
-  topicHints: z.array(z.string()).optional(),
+  marketScope: z
+    .enum(["CN", "US", "GLOBAL"]) // Market geographic scope for sourcing headlines
+    .describe("Market scope: CN | US | GLOBAL"),
+  topicHints: z
+    .array(z.string())
+    .describe("Optional topic keywords to bias selection")
+    .optional(),
   // Defaults make the field optional at runtime while preserving a concrete type
-  windowHours: z.number().int().positive().max(72).default(12),
-  limit: z.number().int().positive().max(50).default(12),
-  languages: z.array(z.enum(["en", "zh"])).default(["en", "zh"]),
+  windowHours: z
+    .number()
+    .int()
+    .positive()
+    .max(72)
+    .describe("Recency window in hours (<=72), default 24")
+    .default(24),
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .max(20)
+    .describe("Max headlines after dedupe (<=20), default 12")
+    .default(12),
 });
 
+/**
+ * Output shape consumed by the Overall Report generator.
+ * - topHeadlines: deduplicated, impact-scored items
+ * - meta: small diagnostics to support observability and fallbacks
+ */
 export type NewsImpactOutput = {
+  /** Sorted by impact desc after dedupe/cluster */
   topHeadlines: Array<{
+    /** Stable id (e.g., source+timestamp hash) */
     id: string;
+    /** Provider/source name */
     source: string;
+    /** ISO8601 publish time */
     publishedAt: string;
+    /** Related tickers resolved from content */
     tickers: string[];
+    /** Optional GICS sector */
     sector?: string;
+    /** Short theme label (e.g., "AI supply chain") */
     theme?: string;
-    sentiment: number; // [-1,1]
-    impact: number; // [0,100]
-    summary: string; // short declarative
+    /** Normalized sentiment in [-1, 1] */
+    sentiment: number;
+    /** Normalized cross-source impact in [0, 100] */
+    impact: number;
+    /** Short, declarative summary (<= 140 chars recommended) */
+    summary: string;
+    /** Optional canonical URL */
     url?: string;
   }>;
-  meta: { windowHours: number; providerCount: number; deduped: number };
+  meta: {
+    /** Effective window in hours used for the query */
+    windowHours: number;
+    /** Number of sources queried */
+    providerCount: number;
+    /** Number of items removed by dedupe */
+    deduped: number;
+  };
 };
 
 export const NewsImpactTool = defineTool<
