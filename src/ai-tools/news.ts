@@ -37,6 +37,28 @@ const inputSchema = z.object({
     .max(20)
     .describe("Max headlines after dedupe (<=20), default 12")
     .default(12),
+  // Optional lightweight preview enrichment for top-N items
+  previewTopN: z
+    .number()
+    .int()
+    .min(0)
+    .max(3)
+    .describe("Fetch short description for top-N items (<=3). Default 0")
+    .default(0),
+  previewTimeoutMs: z
+    .number()
+    .int()
+    .min(500)
+    .max(10000)
+    .describe("Per-preview fetch timeout in ms. Default 3000")
+    .default(3000),
+  previewMaxChars: z
+    .number()
+    .int()
+    .min(60)
+    .max(360)
+    .describe("Max characters for preview snippet. Default 160")
+    .default(160),
 });
 
 /**
@@ -97,6 +119,22 @@ const AbortControllerCtor: AnyAbortController = (globalThis as any)
   .AbortController as AnyAbortController;
 const setTimeoutFn = (globalThis as any).setTimeout as any;
 const clearTimeoutFn = (globalThis as any).clearTimeout as any;
+
+// Decode basic HTML entities and numeric references
+function decodeHtmlEntities(input: string): string {
+  if (!input) return "";
+  return input
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) =>
+      String.fromCharCode(parseInt(h, 16)),
+    )
+    .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(parseInt(d, 10)));
+}
 
 /**
  * Fetch top headlines from GDELT Doc API within last 24h.
@@ -173,16 +211,27 @@ function parseAtomOrRss(xml: string): NormalizedHeadline[] {
   const entryRegex = /<entry[\s\S]*?<\/entry>/g;
   const entries = xml.match(entryRegex) ?? [];
   for (const block of entries) {
-    const title = (block.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? "").trim();
+    const rawTitle = (
+      block.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? ""
+    ).trim();
     const updated =
       block.match(/<updated>([\s\S]*?)<\/updated>/)?.[1]?.trim() ||
       block.match(/<published>([\s\S]*?)<\/published>/)?.[1]?.trim() ||
       new Date().toISOString();
     const linkHref =
-      block.match(/<link[^>]*?href="([^"]+)"[^>]*\/>/)?.[1] ??
+      block.match(/<link[^>]*?href="([^"]+)"[^>]*\/>/)?.[1] ||
       block.match(/<link>([\s\S]*?)<\/link>/)?.[1]?.trim();
+    const summaryHtml =
+      block.match(/<summary[\s\S]*?>([\s\S]*?)<\/summary>/)?.[1] ||
+      block.match(/<content[\s\S]*?>([\s\S]*?)<\/content>/)?.[1] ||
+      "";
+    const cleaned = summaryHtml
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    const title = cleaned.length > 0 ? cleaned : rawTitle;
     items.push({
-      id: `${title.slice(0, 80)}|${updated}`,
+      id: `${rawTitle.slice(0, 80)}|${updated}`,
       source: "ATOM",
       title,
       url: linkHref,
@@ -194,14 +243,29 @@ function parseAtomOrRss(xml: string): NormalizedHeadline[] {
   const itemRegex = /<item[\s\S]*?<\/item>/g;
   const rssItems = xml.match(itemRegex) ?? [];
   for (const block of rssItems) {
-    const title = (block.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? "").trim();
+    const rawTitle = (
+      block.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? ""
+    ).trim();
     const pubDate =
       block.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1]?.trim() ||
       block.match(/<dc:date>([\s\S]*?)<\/dc:date>/)?.[1]?.trim() ||
       new Date().toUTCString();
     const link = block.match(/<link>([\s\S]*?)<\/link>/)?.[1]?.trim();
+    const descHtml =
+      block.match(/<description>([\s\S]*?)<\/description>/)?.[1] ||
+      block.match(/<content:encoded>([\s\S]*?)<\/content:encoded>/)?.[1] ||
+      "";
+    const candidate = decodeHtmlEntities(descHtml.replace(/<[^>]+>/g, " "))
+      .replace(/\s+/g, " ")
+      .trim();
+    const title =
+      candidate.length > 0
+        ? candidate
+        : decodeHtmlEntities(rawTitle)
+            .replace(/<[^>]+>/g, " ")
+            .trim();
     items.push({
-      id: `${title.slice(0, 80)}|${pubDate}`,
+      id: `${decodeHtmlEntities(rawTitle).slice(0, 80)}|${pubDate}`,
       source: "RSS",
       title,
       url: link,
@@ -209,6 +273,53 @@ function parseAtomOrRss(xml: string): NormalizedHeadline[] {
     });
   }
   return items;
+}
+
+/**
+ * Fetch a short preview snippet from a URL by inspecting common meta tags and first paragraph.
+ */
+async function fetchUrlPreview(
+  url: string,
+  timeoutMs: number,
+  maxChars: number,
+): Promise<string | undefined> {
+  try {
+    const controller = new AbortControllerCtor();
+    const timeout = setTimeoutFn(() => controller.abort(), timeoutMs);
+    const res = await fetchFn(url, {
+      signal: controller.signal,
+      headers: { Accept: "text/html,application/xhtml+xml" },
+    });
+    clearTimeoutFn(timeout as any);
+    if (!res.ok) return undefined;
+    const html = await res.text();
+    const re = {
+      metaDesc:
+        /<meta\s+name=["']description["']\s+content=["']([^"']+)["'][^>]*>/i,
+      ogDesc:
+        /<meta\s+property=["']og:description["']\s+content=["']([^"']+)["'][^>]*>/i,
+      twDesc:
+        /<meta\s+name=["']twitter:description["']\s+content=["']([^"']+)["'][^>]*>/i,
+      firstP: /<p[^>]*>(.*?)<\/p>/i,
+    };
+    const candidates = [
+      html.match(re.metaDesc)?.[1],
+      html.match(re.ogDesc)?.[1],
+      html.match(re.twDesc)?.[1],
+      html.match(re.firstP)?.[1],
+    ];
+    const pick = candidates.find((x) => Boolean(x));
+    if (!pick) return undefined;
+    const text = decodeHtmlEntities(pick)
+      .replace(/<br\s*\/?>(\r?\n)?/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!text) return undefined;
+    return text.length > maxChars ? `${text.slice(0, maxChars - 1)}…` : text;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -416,6 +527,24 @@ export const NewsImpactTool = defineTool<
         summary: headline.title,
         url: headline.url,
       }));
+
+    // 5) Optionally enrich Top-N with short previews
+    const enrichN = Math.min(input.previewTopN ?? 0, top.length);
+    if (enrichN > 0) {
+      await Promise.all(
+        top.slice(0, enrichN).map(async (item, idx) => {
+          if (!item.url) return;
+          const snippet = await fetchUrlPreview(
+            item.url,
+            input.previewTimeoutMs ?? 3000,
+            input.previewMaxChars ?? 160,
+          );
+          if (snippet) {
+            top[idx].summary = snippet;
+          }
+        }),
+      );
+    }
 
     return {
       ok: true,
