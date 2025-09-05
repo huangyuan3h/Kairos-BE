@@ -35,7 +35,6 @@ Before you begin, ensure you have the following installed:
     ```
 
 2.  **Set up Python Virtual Environment:**
-
     - Create the virtual environment using `uv` and Python 3.11:
 
     ```bash
@@ -58,7 +57,6 @@ Before you begin, ensure you have the following installed:
     You should see `(.venv)` prepended to your shell prompt.
 
 3.  **Set up Node.js Environment and Install Dependencies:**
-
     - This project uses `bun` to manage Node.js dependencies (like SST).
     - Install dependencies defined in `package.json`:
 
@@ -83,6 +81,7 @@ Before you begin, ensure you have the following installed:
 - 📋 [项目背景](./docs/PROJECT_CONTEXT.md) - 详细的业务场景和技术架构
 - ✅ [任务清单](./docs/TODO.md) - 开发任务拆分和进度跟踪
 - 🚀 [部署指南](#deployment) - 环境配置和部署流程
+- 🧰 [Overall Report 工具规划](./docs/business/overall-report-tools.md) - 顶级三大工具的目标与接口
 
 ## Project Structure
 
@@ -141,30 +140,25 @@ Kairos-BE/
 根据 [项目背景文档](./PROJECT_CONTEXT.md#下一步计划)，建议按以下顺序进行开发：
 
 1. **基础设施搭建**
-
    - 完善 SST 配置 (`sst.config.ts`)
    - 设置 AWS 资源 (DynamoDB, Lambda, API Gateway 等)
    - 配置多语言 Lambda 函数环境
 
 2. **核心模块开发**
-
    - 创建 `functions/` 和 `core/` 目录结构
    - 实现 Python 数据爬取模块 (akshare)
    - 设计数据模型和存储方案
 
 3. **API 设计**
-
    - 实现 REST API (Node.js/Golang)
    - 设计 GraphQL Schema
    - 配置 GraphQL Federation
 
 4. **认证系统**
-
    - 实现用户认证和授权
    - 配置跨语言服务的统一认证机制
 
 5. **AI 集成**
-
    - 集成 Vercel AI SDK
    - 配置 Langfuse 进行 Prompt 管理
    - 实现实时 Stream 通信

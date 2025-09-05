@@ -1,44 +1,66 @@
 import { z } from "zod";
 
 /**
- * Simple AI Tool interface
+ * Result type returned by all tools. Tools MUST NOT throw.
  */
-export interface AiTool {
-  name: string;
-  description: string;
-  inputSchema: z.ZodSchema<any>;
-  execute: (input: any) => Promise<any>;
-}
+export type Result<TData, TMeta = unknown> =
+  | { ok: true; data: TData; meta?: TMeta }
+  | { ok: false; error: string; meta?: TMeta };
 
 /**
- * Tool categories for organization
+ * Tool categories aligned with Overall Report
  */
 export enum ToolCategory {
-  MARKET_DATA = "market_data",
-  NEWS_ANALYSIS = "news_analysis",
+  NEWS = "news",
+  MACRO = "macro",
+  SECTOR = "sector",
 }
 
 /**
- * Base class for AI tools with common functionality
+ * Plain-object AI Tool contract
  */
-export abstract class BaseAiTool implements AiTool {
-  abstract name: string;
-  abstract description: string;
-  abstract category: ToolCategory;
-  abstract inputSchema: z.ZodSchema<any>;
+export interface AiTool<TInput = unknown, TOutput = unknown> {
+  name: string;
+  description: string;
+  category: ToolCategory;
+  schema: z.ZodType<TInput, z.ZodTypeDef, unknown>;
+  execute: (input: unknown) => Promise<Result<TOutput>>;
+}
 
-  async execute(input: any): Promise<any> {
-    try {
-      const validatedInput = this.inputSchema.parse(input);
-      return await this.executeImpl(validatedInput);
-    } catch (error) {
-      throw new Error(
-        `Tool "${this.name}" failed: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-    }
-  }
+/**
+ * Helper to define a tool with input validation and unified error handling.
+ */
+export function defineTool<TInput, TOutput>(args: {
+  name: string;
+  description: string;
+  category: ToolCategory;
+  schema: z.ZodType<TInput, z.ZodTypeDef, unknown>;
+  handler: (input: TInput) => Promise<Result<TOutput>> | Result<TOutput>;
+}): AiTool<TInput, TOutput> {
+  const { name, description, category, schema, handler } = args;
 
-  protected abstract executeImpl(input: any): Promise<any>;
+  return {
+    name,
+    description,
+    category,
+    schema,
+    async execute(input: unknown): Promise<Result<TOutput>> {
+      const parsed = schema.safeParse(input);
+      if (!parsed.success) {
+        return {
+          ok: false,
+          error: `Invalid input for ${name}: ${parsed.error.message}`,
+        };
+      }
+      try {
+        const result = await handler(parsed.data);
+        return result;
+      } catch (err) {
+        return {
+          ok: false,
+          error: err instanceof Error ? err.message : String(err),
+        };
+      }
+    },
+  };
 }

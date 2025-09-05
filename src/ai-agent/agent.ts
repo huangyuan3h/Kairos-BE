@@ -10,7 +10,7 @@ const defaultObjectSchema = z.any();
 export interface AiTool {
   name: string;
   description: string;
-  inputSchema: z.ZodSchema<any>;
+  schema: z.ZodSchema<any>;
   execute: (input: any) => Promise<any>;
 }
 
@@ -59,7 +59,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
       toolSet[tool.name] = {
         name: tool.name,
         description: tool.description,
-        inputSchema: tool.inputSchema,
+        inputSchema: tool.schema,
         execute: async (input: any) => {
           const langfuse = getLangfuse();
           if (langfuse) {

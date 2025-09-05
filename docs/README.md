@@ -58,6 +58,7 @@
 - [Vercel AI SDK](./ai/vercel-ai-sdk.md) - AI 交互实现
 - [Langfuse 集成](./ai/langfuse-integration.md) - Prompt 管理和监控
 - [Token 计费](./ai/token-billing.md) - AI 使用量统计和计费
+- [Overall Report 工具规划](./business/overall-report-tools.md) - 顶级三大工具的目标、输入输出与 SLO
 
 ## 🔍 文档使用指南
 
