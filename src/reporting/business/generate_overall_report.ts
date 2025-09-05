@@ -1,5 +1,6 @@
 import { getLangfuse } from "@src/ai-agent";
 import { createObjectAgentWithSchema } from "@src/ai-agent/agent";
+import { getOverallReportTools } from "@src/ai-tools";
 import { DynamoTable, getDynamoTableName } from "@src/util/dynamodb";
 import "dotenv/config";
 import { z } from "zod";
@@ -59,7 +60,7 @@ export async function generateOverallReport(): Promise<OverallReport> {
   // Initialize AI agent with Gemini 2.5 Flash and custom schema
   const aiAgent = createObjectAgentWithSchema({
     model: "gemini-2.5-flash", // Use gemini-2.5-flash as requested
-    tools: [], // Empty tools array for testing
+    tools: getOverallReportTools(), // Provide NIA/MLS/SRV tools to the agent
     systemPrompt,
     schema: reportSchema, // Use custom schema for report generation
   });
