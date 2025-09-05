@@ -78,6 +78,239 @@ export type NewsImpactOutput = {
   };
 };
 
+/**
+ * Normalized minimal headline shape used by fetchers in this module.
+ */
+export type NormalizedHeadline = {
+  id: string;
+  source: string;
+  title: string;
+  url?: string;
+  publishedAt: string; // ISO8601
+};
+
+// Runtime globals shim to avoid requiring DOM lib types in TS config
+type AnyFetch = (input: any, init?: any) => Promise<any>;
+type AnyAbortController = new () => { abort: () => void; signal: any };
+const fetchFn: AnyFetch = (globalThis as any).fetch as AnyFetch;
+const AbortControllerCtor: AnyAbortController = (globalThis as any)
+  .AbortController as AnyAbortController;
+const setTimeoutFn = (globalThis as any).setTimeout as any;
+const clearTimeoutFn = (globalThis as any).clearTimeout as any;
+
+/**
+ * Fetch top headlines from GDELT Doc API within last 24h.
+ * This is a lightweight integration using the public endpoint.
+ */
+export async function fetchGdeltDocs(input: {
+  marketScope: "CN" | "US" | "GLOBAL";
+  windowHours: number;
+  limit: number;
+  topicHints?: string[];
+}): Promise<NormalizedHeadline[]> {
+  const { marketScope, windowHours, limit, topicHints } = input;
+
+  const base = "https://api.gdeltproject.org/api/v2/doc/doc";
+  const defaultQuery = [
+    "finance",
+    "market",
+    "stocks",
+    "rates",
+    "inflation",
+    "earnings",
+    "regulation",
+  ];
+  const keywords = [...defaultQuery, ...(topicHints ?? [])]
+    .map((k) => `"${k}"`)
+    .join(" OR ");
+
+  const scopeBias = (() => {
+    switch (marketScope) {
+      case "CN":
+        return "(China OR Chinese)";
+      case "US":
+        return "(United States OR US OR U.S.)";
+      default:
+        return "";
+    }
+  })();
+
+  const query = [keywords, scopeBias].filter(Boolean).join(" ");
+
+  const url = `${base}?query=${encodeURIComponent(query)}&timespan=${Math.min(
+    Math.max(1, windowHours),
+    72,
+  )}h&maxrecords=${Math.min(Math.max(1, limit), 50)}&format=json&sort=DateDesc`;
+
+  const controller = new AbortControllerCtor();
+  const timeout = setTimeoutFn(() => controller.abort(), 8000);
+  try {
+    const res = await fetchFn(url, { signal: controller.signal });
+    if (!res.ok) return [];
+    const json: any = await res.json();
+    const articles: any[] = Array.isArray(json?.articles) ? json.articles : [];
+    return articles.slice(0, limit).map((a) => ({
+      id: String(a?.url ?? a?.seendate ?? Math.random()),
+      source: String(a?.source ?? a?.domain ?? "GDELT"),
+      title: String(a?.title ?? ""),
+      url: typeof a?.url === "string" ? a.url : undefined,
+      publishedAt: new Date(String(a?.seendate ?? Date.now())).toISOString(),
+    }));
+  } catch {
+    return [];
+  } finally {
+    clearTimeoutFn(timeout as any);
+  }
+}
+
+/**
+ * Minimal Atom/RSS parser extracting title/link/published timestamp.
+ * This is not a full XML parser but sufficient for well-formed feeds we target.
+ */
+function parseAtomOrRss(xml: string): NormalizedHeadline[] {
+  const items: NormalizedHeadline[] = [];
+  // Prefer <entry> (Atom)
+  const entryRegex = /<entry[\s\S]*?<\/entry>/g;
+  const entries = xml.match(entryRegex) ?? [];
+  for (const block of entries) {
+    const title = (block.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? "").trim();
+    const updated =
+      block.match(/<updated>([\s\S]*?)<\/updated>/)?.[1]?.trim() ||
+      block.match(/<published>([\s\S]*?)<\/published>/)?.[1]?.trim() ||
+      new Date().toISOString();
+    const linkHref =
+      block.match(/<link[^>]*?href="([^"]+)"[^>]*\/>/)?.[1] ??
+      block.match(/<link>([\s\S]*?)<\/link>/)?.[1]?.trim();
+    items.push({
+      id: `${title.slice(0, 80)}|${updated}`,
+      source: "ATOM",
+      title,
+      url: linkHref,
+      publishedAt: new Date(updated).toISOString(),
+    });
+  }
+  if (items.length > 0) return items;
+  // Fallback to RSS <item>
+  const itemRegex = /<item[\s\S]*?<\/item>/g;
+  const rssItems = xml.match(itemRegex) ?? [];
+  for (const block of rssItems) {
+    const title = (block.match(/<title>([\s\S]*?)<\/title>/)?.[1] ?? "").trim();
+    const pubDate =
+      block.match(/<pubDate>([\s\S]*?)<\/pubDate>/)?.[1]?.trim() ||
+      block.match(/<dc:date>([\s\S]*?)<\/dc:date>/)?.[1]?.trim() ||
+      new Date().toUTCString();
+    const link = block.match(/<link>([\s\S]*?)<\/link>/)?.[1]?.trim();
+    items.push({
+      id: `${title.slice(0, 80)}|${pubDate}`,
+      source: "RSS",
+      title,
+      url: link,
+      publishedAt: new Date(pubDate).toISOString(),
+    });
+  }
+  return items;
+}
+
+/**
+ * Fetch SEC EDGAR current reports (primarily 8-K) via Atom feed.
+ * Respect EDGAR fair access by providing a custom User-Agent via env var.
+ */
+export async function fetchEdgarCurrentReports(input: {
+  limit: number;
+}): Promise<NormalizedHeadline[]> {
+  const { limit } = input;
+  const url =
+    "https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=8-K&owner=include&count=200&output=atom";
+  const ua =
+    process.env.EDGAR_USER_AGENT ??
+    "KairosBE/1.0 (contact: change-me@example.com)";
+  const controller = new AbortControllerCtor();
+  const timeout = setTimeoutFn(() => controller.abort(), 8000);
+  try {
+    const res = await fetchFn(url, {
+      signal: controller.signal,
+      headers: {
+        "User-Agent": ua,
+        Accept: "application/atom+xml,application/rss+xml;q=0.9,*/*;q=0.8",
+      },
+    });
+    if (!res.ok) return [];
+    const xml = await res.text();
+    const parsed = parseAtomOrRss(xml).slice(0, Math.min(limit, 50));
+    return parsed.map((p) => ({ ...p, source: "SEC EDGAR" }));
+  } catch {
+    return [];
+  } finally {
+    clearTimeoutFn(timeout as any);
+  }
+}
+
+/**
+ * Fetch recent central bank/regulator headlines via RSS/Atom.
+ * Default feeds: Federal Reserve, ECB, Bank of England. Failures are tolerated.
+ */
+export async function fetchCentralBankFeeds(input: {
+  limit: number;
+}): Promise<NormalizedHeadline[]> {
+  const { limit } = input;
+  const feeds: Array<{ name: string; url: string }> = [
+    {
+      name: "Federal Reserve",
+      url: "https://www.federalreserve.gov/feeds/press_all.xml",
+    },
+    { name: "ECB", url: "https://www.ecb.europa.eu/press/pr/rss/EN.rss" },
+    {
+      name: "Bank of England",
+      url: "https://www.bankofengland.co.uk/boeapps/rss/feeds.aspx?FeedType=MediaCentreNews",
+    },
+  ];
+
+  const controller = new AbortControllerCtor();
+  const timeout = setTimeoutFn(() => controller.abort(), 8000);
+  try {
+    const results: NormalizedHeadline[] = [];
+    await Promise.all(
+      feeds.map(async (f) => {
+        try {
+          const res = await fetchFn(f.url, {
+            signal: controller.signal,
+            headers: {
+              Accept:
+                "application/atom+xml,application/rss+xml;q=0.9,*/*;q=0.8",
+            },
+          });
+          if (!res.ok) return;
+          const xml = await res.text();
+          const parsed = parseAtomOrRss(xml)
+            .slice(0, Math.max(1, Math.floor(limit / feeds.length)))
+            .map((p) => ({ ...p, source: f.name }));
+          results.push(...parsed);
+        } catch {
+          // ignore single feed failure
+        }
+      }),
+    );
+    // Sort by publishedAt desc and cap to limit
+    return results
+      .sort(
+        (a, b) =>
+          new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
+      )
+      .slice(0, limit);
+  } finally {
+    clearTimeoutFn(timeout as any);
+  }
+}
+
+/**
+ * Exported indirection to allow Jest to mock/stub fetchers easily.
+ */
+export const NewsFetchers = {
+  fetchGdeltDocs,
+  fetchEdgarCurrentReports,
+  fetchCentralBankFeeds,
+};
+
 export const NewsImpactTool = defineTool<
   z.infer<typeof inputSchema>,
   NewsImpactOutput
@@ -88,30 +321,110 @@ export const NewsImpactTool = defineTool<
   category: ToolCategory.NEWS,
   schema: inputSchema,
   async handler(input) {
-    // Mock implementation; replace providers behind this handler later
-    const now = new Date().toISOString();
+    // 1) Fetch from three free providers in parallel
+    const [gdelt, edgar, central] = await Promise.all([
+      NewsFetchers.fetchGdeltDocs({
+        marketScope: input.marketScope,
+        windowHours: input.windowHours,
+        limit: input.limit * 3,
+        topicHints: input.topicHints,
+      }),
+      NewsFetchers.fetchEdgarCurrentReports({ limit: input.limit }),
+      NewsFetchers.fetchCentralBankFeeds({ limit: input.limit }),
+    ]);
+
+    const combined: NormalizedHeadline[] = [...gdelt, ...edgar, ...central];
+    const before = combined.length;
+
+    // 2) Deduplicate by URL OR normalized title (either match counts as duplicate)
+    const normalizeTitle = (t: string) =>
+      t
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    const seenUrl = new Set<string>();
+    const seenTitle = new Set<string>();
+    const deduped: NormalizedHeadline[] = [];
+    for (const h of combined) {
+      const normTitle = normalizeTitle(h.title || "");
+      const urlKey = h.url?.trim();
+
+      if (
+        (urlKey && seenUrl.has(urlKey)) ||
+        (normTitle && seenTitle.has(normTitle))
+      ) {
+        continue;
+      }
+      if (urlKey) seenUrl.add(urlKey);
+      if (normTitle) seenTitle.add(normTitle);
+      deduped.push(h);
+    }
+
+    // 3) Score with a simple bandit-inspired heuristic: base weight + recency + topic bonus
+    const sourceBaseWeight = (src: string): number => {
+      if (src === "SEC EDGAR") return 1.0;
+      if (
+        src === "Federal Reserve" ||
+        src === "ECB" ||
+        src === "Bank of England"
+      )
+        return 0.9;
+      if (src.includes("GDELT")) return 0.5;
+      return 0.6;
+    };
+    const recencyWeight = (iso: string): number => {
+      const hours = Math.max(
+        0,
+        (Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60),
+      );
+      return Math.max(0, 1 - Math.min(hours, 48) / 48); // 0..1, 24h内更高
+    };
+    const topicBonus = (title: string): number => {
+      if (!input.topicHints || input.topicHints.length === 0) return 0;
+      const lower = title.toLowerCase();
+      for (const hint of input.topicHints) {
+        if (lower.includes(String(hint).toLowerCase())) return 0.2;
+      }
+      return 0;
+    };
+
+    const scored = deduped.map((h) => {
+      const base = sourceBaseWeight(h.source);
+      const rec = recencyWeight(h.publishedAt);
+      const bonus = topicBonus(h.title);
+      const score = Math.max(
+        0,
+        Math.min(1, base * 0.6 + rec * 0.3 + bonus * 0.1),
+      );
+      return { headline: h, score };
+    });
+
+    // 4) Sort and map to NewsImpactOutput shape
+    const top = scored
+      .sort((a, b) => b.score - a.score)
+      .slice(0, input.limit)
+      .map(({ headline, score }) => ({
+        id: headline.id,
+        source: headline.source,
+        publishedAt: headline.publishedAt,
+        tickers: [],
+        sector: undefined,
+        theme: undefined,
+        sentiment: 0,
+        impact: Math.round(score * 100),
+        summary: headline.title,
+        url: headline.url,
+      }));
+
     return {
       ok: true,
       data: {
-        topHeadlines: [
-          {
-            id: "mock-001",
-            source: "MockWire",
-            publishedAt: now,
-            tickers: ["NVDA"],
-            sector: "Information Technology",
-            theme: "AI supply chain",
-            sentiment: 0.3,
-            impact: 72,
-            summary:
-              "Datacenter demand remains strong across AI infrastructure",
-            url: "https://example.com/news/001",
-          },
-        ].slice(0, input.limit ?? 12),
+        topHeadlines: top,
         meta: {
-          windowHours: input.windowHours ?? 12,
-          providerCount: 1,
-          deduped: 0,
+          windowHours: input.windowHours,
+          providerCount: 3,
+          deduped: Math.max(0, before - deduped.length),
         },
       },
     };
