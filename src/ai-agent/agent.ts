@@ -26,6 +26,10 @@ export interface AiAgentConfig {
   maxTokens?: number;
   systemPrompt?: string;
   schema?: z.ZodSchema<any>;
+  // Optional user identifier to be attached to traces
+  userId?: string;
+  // Extra metadata forwarded to traces/observations
+  metadata?: Record<string, any>;
 }
 
 // AI Agent interface
@@ -44,6 +48,8 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
     outputFormat = "text",
     systemPrompt = "You are a helpful AI assistant.",
     schema = defaultObjectSchema,
+    userId,
+    metadata = {},
   } = config;
 
   // Create Google AI model instance
@@ -103,6 +109,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
 
     const trace = langfuse.trace({
       name: `ai_agent_${operation}`,
+      userId,
       metadata: {
         model,
         outputFormat,
@@ -134,13 +141,17 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
   ) => {
     return withTracing("chat", async () => {
       const toolDefinitions = createToolDefinitions();
+      const langfuse = getLangfuse();
 
       switch (outputFormat) {
         case "stream-text":
           return streamText({
             model: googleModel,
             messages,
-            tools: toolDefinitions?.length > 0 ? toolDefinitions : undefined,
+            tools:
+              toolDefinitions && Object.keys(toolDefinitions).length > 0
+                ? toolDefinitions
+                : undefined,
             system: systemPrompt,
           });
 
@@ -152,22 +163,59 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
             system: systemPrompt,
           } as any);
 
-        case "object":
-          return generateObject({
+        case "object": {
+          const generation = langfuse?.generation({
+            name: "model_generation",
+            model,
+            input: { system: systemPrompt, messages },
+            metadata: {
+              ...metadata,
+              tools: tools.map((t) => t.name),
+              outputFormat,
+            },
+          });
+          const result = await generateObject({
             model: googleModel,
             messages,
             schema: schema as any,
             system: systemPrompt,
           } as any);
+          try {
+            generation?.update({ output: (result as any)?.object ?? result });
+          } finally {
+            await generation?.end();
+          }
+          return result;
+        }
 
         case "text":
-        default:
-          return generateText({
+        default: {
+          const generation = langfuse?.generation({
+            name: "model_generation",
+            model,
+            input: { system: systemPrompt, messages },
+            metadata: {
+              ...metadata,
+              tools: tools.map((t) => t.name),
+              outputFormat,
+            },
+          });
+          const result = await generateText({
             model: googleModel,
             messages,
-            tools: toolDefinitions?.length > 0 ? toolDefinitions : undefined,
+            tools:
+              toolDefinitions && Object.keys(toolDefinitions).length > 0
+                ? toolDefinitions
+                : undefined,
             system: systemPrompt,
           });
+          try {
+            generation?.update({ output: (result as any)?.text ?? result });
+          } finally {
+            await generation?.end();
+          }
+          return result;
+        }
       }
     });
   };
