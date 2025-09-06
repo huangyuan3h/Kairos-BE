@@ -27,6 +27,7 @@ export async function withTrace<T>(
     trace.update({ output: `error: ${err?.message || String(err)}` });
     throw err;
   } finally {
-    await lf.shutdownAsync?.();
+    // Keep the Langfuse client alive for the process lifetime to allow
+    // observations to accumulate and latency to be measured correctly.
   }
 }
