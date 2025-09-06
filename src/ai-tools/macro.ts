@@ -94,18 +94,39 @@ export const MacroLiquiditySnapshotTool = defineTool<
         "http://www.shibor.org/shibor/",
       ];
       const markers = ["1W", "1周", "一周", "1 Week", "1 week"];
-      const SHIBOR_TD_REGEX =
-        /<td>\s*(1W|1周|一周)\s*<\/td>\s*<td[^>]*>\s*([0-9]+(?:\.[0-9]+)?)\s*<\/td>/i;
+
+      // Enhanced table matching patterns for various HTML structures
+      const tablePatterns = [
+        // Standard adjacent TD pattern
+        /<td[^>]*>\s*(1W|1周|一周)\s*<\/td>\s*<td[^>]*>\s*([0-9]+(?:\.[0-9]+)?)\s*<\/td>/gi,
+        // Pattern with more flexible spacing/tags between cells
+        /<td[^>]*>\s*(1W|1周|一周)\s*<\/td>[\s\S]*?<td[^>]*>\s*([0-9]+(?:\.[0-9]+)?)\s*<\/td>/gi,
+        // Alternative: look for class/id patterns containing week data
+        /<[^>]*(?:class|id)[^>]*(?:1w|week)[^>]*>\s*([0-9]+(?:\.[0-9]+)?)\s*</gi,
+        // Look for TR containing both 1W and a number
+        /<tr[^>]*>[\s\S]*?(?:1W|1周|一周)[\s\S]*?([0-9]+(?:\.[0-9]+)?)[\s\S]*?<\/tr>/gi,
+      ];
+
       for (const u of urls) {
         const html = await fetchHtml(u);
         if (!html) continue;
-        const tableMatch = html.match(SHIBOR_TD_REGEX);
-        if (tableMatch) {
-          const v = Number(tableMatch[2]);
-          if (Number.isFinite(v)) return v;
+
+        // Try enhanced table patterns first
+        for (const pattern of tablePatterns) {
+          pattern.lastIndex = 0; // Reset regex global state
+          const matches = Array.from(html.matchAll(pattern));
+          for (const match of matches) {
+            const rateStr = match[2] || match[1];
+            if (rateStr) {
+              const v = Number(rateStr);
+              if (Number.isFinite(v) && v > 0 && v < 20) return v; // Sanity check for rate range
+            }
+          }
         }
+
+        // Fallback: nearby number extraction with sanity check
         const v2 = extractNearbyNumber(html, markers);
-        if (typeof v2 === "number") return v2;
+        if (typeof v2 === "number" && v2 > 0 && v2 < 20) return v2;
       }
       return undefined;
     }
@@ -114,20 +135,67 @@ export const MacroLiquiditySnapshotTool = defineTool<
     // CN: MLF rate via PBOC web (best-effort)
     // ======================================
     async function fetchCnMlfFromPBOCWeb(): Promise<number | undefined> {
-      const urls = [
+      const listUrls = [
         "http://www.pbc.gov.cn/goutongjiaoliu/113456/113469/index.html",
         "http://www.pbc.gov.cn/english/130721/130922/index.html",
       ];
-      const patterns = [
-        /MLF[^(]*?rate[^0-9]*?([0-9]+(?:\.[0-9]+)?)%/i,
-        /中期借贷便利（?MLF）?利率为?\s*([0-9]+(?:\.[0-9]+)?)%/,
-        /MLF\s*利率[^0-9]*?([0-9]+(?:\.[0-9]+)?)%/i,
-      ];
-      for (const u of urls) {
-        const html = await fetchHtml(u);
-        if (!html) continue;
-        for (const re of patterns) {
-          const m = html.match(re);
+
+      // Try list page → detail page approach first
+      for (const listUrl of listUrls) {
+        const listHtml = await fetchHtml(listUrl);
+        if (!listHtml) continue;
+
+        // Find first announcement link (look for href patterns)
+        const linkPatterns = [
+          /<a[^>]+href="([^"]*(?:113456|130721)[^"]*)"[^>]*>/i,
+          /<a[^>]+href="([^"]+\.html)"[^>]*>.*?(?:MLF|中期借贷便利|medium.*?lending)/i,
+        ];
+
+        let detailUrl = null;
+        for (const linkPattern of linkPatterns) {
+          const linkMatch = listHtml.match(linkPattern);
+          if (linkMatch) {
+            detailUrl = linkMatch[1];
+            // Make absolute URL
+            if (detailUrl.startsWith("/")) {
+              detailUrl = "http://www.pbc.gov.cn" + detailUrl;
+            } else if (!detailUrl.startsWith("http")) {
+              const basePath = listUrl.substring(0, listUrl.lastIndexOf("/"));
+              detailUrl = basePath + "/" + detailUrl;
+            }
+            break;
+          }
+        }
+
+        if (detailUrl) {
+          const detailHtml = await fetchHtml(detailUrl);
+          if (detailHtml) {
+            const detailPatterns = [
+              /MLF[^(]*?rate[^0-9]*?([0-9]+(?:\.[0-9]+)?)%/i,
+              /中期借贷便利（?MLF）?利率为?\s*([0-9]+(?:\.[0-9]+)?)%/,
+              /MLF\s*利率[^0-9]*?([0-9]+(?:\.[0-9]+)?)%/i,
+              /medium.*?lending.*?facility.*?rate[^0-9]*?([0-9]+(?:\.[0-9]+)?)%/i,
+            ];
+
+            for (const re of detailPatterns) {
+              const m = detailHtml.match(re);
+              if (m) {
+                const v = Number(m[1]);
+                if (Number.isFinite(v)) return v;
+              }
+            }
+          }
+        }
+
+        // Fallback: try direct pattern matching on list page
+        const directPatterns = [
+          /MLF[^(]*?rate[^0-9]*?([0-9]+(?:\.[0-9]+)?)%/i,
+          /中期借贷便利（?MLF）?利率为?\s*([0-9]+(?:\.[0-9]+)?)%/,
+          /MLF\s*利率[^0-9]*?([0-9]+(?:\.[0-9]+)?)%/i,
+        ];
+
+        for (const re of directPatterns) {
+          const m = listHtml.match(re);
           if (m) {
             const v = Number(m[1]);
             if (Number.isFinite(v)) return v;
@@ -157,7 +225,30 @@ export const MacroLiquiditySnapshotTool = defineTool<
           },
         });
         if (!res.ok) return undefined;
-        return await res.text();
+
+        // Try GBK decode first for Chinese sites, fallback to UTF-8
+        try {
+          const buf = await res.arrayBuffer();
+          const TextDecoderCtor = (globalThis as any).TextDecoder as any;
+          if (TextDecoderCtor) {
+            try {
+              const gbkDecoder = new TextDecoderCtor("gbk");
+              return gbkDecoder.decode(buf);
+            } catch {
+              try {
+                const utf8Decoder = new TextDecoderCtor("utf-8");
+                return utf8Decoder.decode(buf);
+              } catch {
+                // Fallback to text() if TextDecoder fails
+                return await res.clone().text();
+              }
+            }
+          } else {
+            return await res.text();
+          }
+        } catch {
+          return await res.text();
+        }
       } catch {
         return undefined;
       } finally {
@@ -445,6 +536,7 @@ export const MacroLiquiditySnapshotTool = defineTool<
       cGCFUT,
       cVSTOXX_S,
       cXAUUSD_S,
+      cVSTOXX_Y2,
     ] = await Promise.all([
       fetchChart(symbols.UST10Y),
       fetchChart(symbols.DXY),
@@ -456,8 +548,9 @@ export const MacroLiquiditySnapshotTool = defineTool<
       fetchStooqSeries("us2y", windowDays),
       fetchChart(symbols.UST5Y),
       fetchChart("GC=F"),
-      fetchStooqSeries("vstoxx", windowDays),
+      fetchStooqSeries("v2tx", windowDays),
       fetchStooqSeries("xauusd", windowDays),
+      fetchChart("V2TX.DE"),
     ]);
 
     // Fill missing values from lastClose
@@ -479,6 +572,9 @@ export const MacroLiquiditySnapshotTool = defineTool<
     }
     if (vol.VSTOXX == null && typeof cVSTOXX.lastClose === "number") {
       vol.VSTOXX = cVSTOXX.lastClose;
+    }
+    if (vol.VSTOXX == null && typeof cVSTOXX_Y2?.lastClose === "number") {
+      vol.VSTOXX = cVSTOXX_Y2.lastClose;
     }
     if (vol.VSTOXX == null && typeof cVSTOXX_S.lastClose === "number") {
       vol.VSTOXX = cVSTOXX_S.lastClose;
@@ -509,6 +605,8 @@ export const MacroLiquiditySnapshotTool = defineTool<
     if (typeof cWTI.delta === "number") deltas.WTI = cWTI.delta;
     if (typeof cVIX.delta === "number") deltas.VIX = cVIX.delta;
     if (typeof cVSTOXX.delta === "number") deltas.VSTOXX = cVSTOXX.delta;
+    else if (typeof cVSTOXX_Y2?.delta === "number")
+      deltas.VSTOXX = cVSTOXX_Y2.delta;
     else if (typeof cVSTOXX_S.delta === "number")
       deltas.VSTOXX = cVSTOXX_S.delta;
 
