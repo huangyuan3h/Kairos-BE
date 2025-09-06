@@ -30,6 +30,8 @@ export interface AiAgentConfig {
   userId?: string;
   // Extra metadata forwarded to traces/observations
   metadata?: Record<string, any>;
+  // Force tool calls - 'required' forces at least one tool call, 'auto' allows optional
+  toolChoice?: "auto" | "required" | "none";
 }
 
 // AI Agent interface
@@ -50,6 +52,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
     schema = defaultObjectSchema,
     userId,
     metadata = {},
+    toolChoice = "auto",
   } = config;
 
   // Create Google AI model instance
@@ -58,6 +61,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
   // Helper function to create tool definitions for AI SDK
   const createToolDefinitions = (
     traceId?: string,
+    parentObservationId?: string,
   ): Record<string, any> | undefined => {
     if (tools.length === 0) return undefined;
 
@@ -71,21 +75,28 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
         execute: async (input: any) => {
           const langfuse = getLangfuse();
           if (langfuse) {
+            const startTime = new Date();
             const span = langfuse.span({
               name: `tool_execution_${tool.name}`,
               input,
               traceId,
+              parentObservationId,
+              startTime,
               metadata: { tool: tool.name },
             });
             try {
               const result = await tool.execute(input);
-              span.update({ output: result });
+              span.update({
+                output: result,
+                endTime: new Date(),
+              });
               return result;
             } catch (error) {
               span.update({
                 output: `error: ${
                   error instanceof Error ? error.message : String(error)
                 }`,
+                endTime: new Date(),
               });
               throw error;
             } finally {
@@ -144,12 +155,11 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
     parentTrace?: any,
   ) => {
     const run = async (trace: any) => {
-      const toolDefinitions = createToolDefinitions(trace?.id);
-
       const langfuse = getLangfuse();
 
       switch (outputFormat) {
-        case "stream-text":
+        case "stream-text": {
+          const toolDefinitions = createToolDefinitions(trace?.id);
           return streamText({
             model: googleModel,
             messages,
@@ -157,8 +167,15 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
               toolDefinitions && Object.keys(toolDefinitions).length > 0
                 ? toolDefinitions
                 : undefined,
+            toolChoice:
+              toolChoice === "required"
+                ? "required"
+                : toolChoice === "none"
+                  ? "none"
+                  : "auto",
             system: systemPrompt,
           });
+        }
 
         case "stream-object":
           return streamObject({
@@ -169,25 +186,47 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
           } as any);
 
         case "object": {
+          const startTime = new Date();
           const generation = langfuse?.generation({
             name: "model_generation",
             model,
             input: { system: systemPrompt, messages },
             traceId: trace?.id,
+            startTime,
             metadata: {
               ...metadata,
               tools: tools.map((t) => t.name),
               outputFormat,
             },
           });
+
+          const toolDefinitions = createToolDefinitions(
+            trace?.id,
+            generation?.id,
+          );
           const result = await generateObject({
             model: googleModel,
             messages,
+            tools:
+              toolDefinitions && Object.keys(toolDefinitions).length > 0
+                ? toolDefinitions
+                : undefined,
+            toolChoice:
+              toolChoice === "required"
+                ? "required"
+                : toolChoice === "none"
+                  ? "none"
+                  : "auto",
             schema: schema as any,
             system: systemPrompt,
           } as any);
+
           try {
-            generation?.update({ output: (result as any)?.object ?? result });
+            const output = result?.object || result;
+            generation?.update({
+              output,
+              endTime: new Date(),
+            });
           } finally {
             await generation?.end();
           }
@@ -196,17 +235,24 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
 
         case "text":
         default: {
+          const startTime = new Date();
           const generation = langfuse?.generation({
             name: "model_generation",
             model,
             input: { system: systemPrompt, messages },
             traceId: trace?.id,
+            startTime,
             metadata: {
               ...metadata,
               tools: tools.map((t) => t.name),
               outputFormat,
             },
           });
+
+          const toolDefinitions = createToolDefinitions(
+            trace?.id,
+            generation?.id,
+          );
           const result = await generateText({
             model: googleModel,
             messages,
@@ -214,10 +260,21 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
               toolDefinitions && Object.keys(toolDefinitions).length > 0
                 ? toolDefinitions
                 : undefined,
+            toolChoice:
+              toolChoice === "required"
+                ? "required"
+                : toolChoice === "none"
+                  ? "none"
+                  : "auto",
             system: systemPrompt,
           });
+
           try {
-            generation?.update({ output: (result as any)?.text ?? result });
+            const output = result?.text || result;
+            generation?.update({
+              output,
+              endTime: new Date(),
+            });
           } finally {
             await generation?.end();
           }
