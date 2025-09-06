@@ -62,7 +62,7 @@ export async function generateOverallReport(): Promise<OverallReport> {
     model: "gemini-2.5-flash", // Use gemini-2.5-flash as requested
     tools: getOverallReportTools(), // Provide NIA/MLS/SRV tools to the agent
     systemPrompt,
-    toolChoice: "required", // Force the agent to use at least one tool
+    toolChoice: { type: "tool", toolName: "google_news" }, // Force the agent to use at least one tool
     metadata: {
       promptKey: "report/overall_system",
       promptVersion: (prompt as any)?.version,

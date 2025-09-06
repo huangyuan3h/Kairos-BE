@@ -31,7 +31,11 @@ export interface AiAgentConfig {
   // Extra metadata forwarded to traces/observations
   metadata?: Record<string, any>;
   // Force tool calls - 'required' forces at least one tool call, 'auto' allows optional
-  toolChoice?: "auto" | "required" | "none";
+  toolChoice?:
+    | "auto"
+    | "required"
+    | "none"
+    | { type: "tool"; toolName: string };
 }
 
 // AI Agent interface
@@ -146,6 +150,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
     } finally {
       // Note: Langfuse trace doesn't have an end method in this version
       // The trace will be automatically finalized when the process ends
+      await langfuse.shutdownAsync?.();
     }
   };
 
@@ -167,12 +172,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
               toolDefinitions && Object.keys(toolDefinitions).length > 0
                 ? toolDefinitions
                 : undefined,
-            toolChoice:
-              toolChoice === "required"
-                ? "required"
-                : toolChoice === "none"
-                  ? "none"
-                  : "auto",
+            toolChoice,
             system: systemPrompt,
           });
         }
@@ -187,50 +187,73 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
 
         case "object": {
           const startTime = new Date();
-          const generation = langfuse?.generation({
-            name: "model_generation",
+          const planningGen = langfuse?.generation({
+            name: "model_generation_plan",
             model,
             input: { system: systemPrompt, messages },
             traceId: trace?.id,
             startTime,
-            metadata: {
-              ...metadata,
-              tools: tools.map((t) => t.name),
-              outputFormat,
-            },
+            metadata: { ...metadata, phase: "plan-with-tools" },
           });
 
-          const toolDefinitions = createToolDefinitions(
-            trace?.id,
-            generation?.id,
-          );
-          const result = await generateObject({
+          // Step 1: run a multi-step tool-enabled text generation to actually call tools
+          const planningResult = await generateText({
             model: googleModel,
             messages,
-            tools:
-              toolDefinitions && Object.keys(toolDefinitions).length > 0
-                ? toolDefinitions
-                : undefined,
+            tools: createToolDefinitions(trace?.id, planningGen?.id),
             toolChoice:
               toolChoice === "required"
                 ? "required"
                 : toolChoice === "none"
                   ? "none"
                   : "auto",
+            // enable multi-step so tool calls get executed and summarized
+            stopWhen: (ctx: any) => ctx.stepNumber >= 6,
+            system: systemPrompt,
+          } as any);
+
+          try {
+            planningGen?.update({ output: (planningResult as any)?.text });
+          } finally {
+            await planningGen?.end();
+          }
+
+          // Step 2: synthesize final structured object based on the tool-informed text
+          const synthesisGen = langfuse?.generation({
+            name: "model_generation_synthesis",
+            model,
+            input: {
+              system: systemPrompt,
+              messages: [
+                ...messages,
+                { role: "assistant", content: (planningResult as any)?.text },
+              ],
+            },
+            traceId: trace?.id,
+            metadata: { ...metadata, phase: "synthesize-object" },
+          });
+
+          const objectResult = await generateObject({
+            model: googleModel,
+            messages: [
+              ...messages,
+              {
+                role: "assistant" as const,
+                content: (planningResult as any)?.text,
+              },
+            ],
             schema: schema as any,
             system: systemPrompt,
           } as any);
 
           try {
-            const output = result?.object || result;
-            generation?.update({
-              output,
-              endTime: new Date(),
-            });
+            const output = (objectResult as any)?.object ?? objectResult;
+            synthesisGen?.update({ output });
           } finally {
-            await generation?.end();
+            await synthesisGen?.end();
           }
-          return result;
+
+          return objectResult;
         }
 
         case "text":
