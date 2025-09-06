@@ -30,6 +30,8 @@ export interface AiAgentConfig {
   userId?: string;
   // Extra metadata forwarded to traces/observations
   metadata?: Record<string, any>;
+  // Force tool calls - 'required' forces at least one tool call, 'auto' allows optional
+  toolChoice?: "auto" | "required" | "none";
 }
 
 // AI Agent interface
@@ -50,6 +52,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
     schema = defaultObjectSchema,
     userId,
     metadata = {},
+    toolChoice = "auto",
   } = config;
 
   // Create Google AI model instance
@@ -164,6 +167,12 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
               toolDefinitions && Object.keys(toolDefinitions).length > 0
                 ? toolDefinitions
                 : undefined,
+            toolChoice:
+              toolChoice === "required"
+                ? "required"
+                : toolChoice === "none"
+                  ? "none"
+                  : "auto",
             system: systemPrompt,
           });
         }
@@ -202,6 +211,12 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
               toolDefinitions && Object.keys(toolDefinitions).length > 0
                 ? toolDefinitions
                 : undefined,
+            toolChoice:
+              toolChoice === "required"
+                ? "required"
+                : toolChoice === "none"
+                  ? "none"
+                  : "auto",
             schema: schema as any,
             system: systemPrompt,
           } as any);
@@ -245,6 +260,12 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
               toolDefinitions && Object.keys(toolDefinitions).length > 0
                 ? toolDefinitions
                 : undefined,
+            toolChoice:
+              toolChoice === "required"
+                ? "required"
+                : toolChoice === "none"
+                  ? "none"
+                  : "auto",
             system: systemPrompt,
           });
 
