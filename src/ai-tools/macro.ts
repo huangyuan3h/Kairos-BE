@@ -695,7 +695,45 @@ export const MacroLiquiditySnapshotTool = defineTool<
     }
 
     const snapshot = { rates, fx, vol, commodities, deltas };
-    const sources = ["YahooFinance:quote", "YahooFinance:chart"];
+    const sources = [
+      "YahooFinance:quote",
+      "YahooFinance:chart",
+      "Stooq:csv",
+      "CN:web",
+      "TradingEconomics:guest",
+    ];
+
+    // Optional debug logging for network/env diagnostics
+    const debugFlag = String(process.env.MACRO_DEBUG || "").toLowerCase();
+    const debugEnabled = debugFlag === "1" || debugFlag === "true";
+    if (debugEnabled) {
+      const missing: Record<string, string[]> = {
+        rates: [],
+        fx: [],
+        vol: [],
+        commodities: [],
+      };
+      if (snapshot.rates.UST2Y == null) missing.rates.push("UST2Y");
+      if (snapshot.rates.UST10Y == null) missing.rates.push("UST10Y");
+      if (snapshot.rates.CN_R007 == null) missing.rates.push("CN_R007");
+      if (snapshot.rates.CN_MLF == null) missing.rates.push("CN_MLF");
+      if (snapshot.fx.DXY == null) missing.fx.push("DXY");
+      if (snapshot.vol.VIX == null) missing.vol.push("VIX");
+      if (snapshot.vol.VSTOXX == null) missing.vol.push("VSTOXX");
+      if (snapshot.commodities.WTI == null) missing.commodities.push("WTI");
+      if (snapshot.commodities.GOLD == null) missing.commodities.push("GOLD");
+      if (snapshot.commodities.COPPER == null)
+        missing.commodities.push("COPPER");
+      // eslint-disable-next-line no-console
+      console.log(
+        "[MACRO_DEBUG] asOf=%s windowDays=%d missing=%o snapshot=%o sources=%o",
+        asOf,
+        windowDays,
+        missing,
+        snapshot,
+        sources,
+      );
+    }
 
     return {
       ok: true,
