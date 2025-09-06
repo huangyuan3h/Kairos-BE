@@ -1,10 +1,13 @@
 export * from "./base";
+export * from "./bloomberg-news";
+export * from "./google-news";
 export * from "./macro";
-export * from "./news";
 export * from "./sector";
 
-// import { MacroLiquiditySnapshotTool } from "./macro";
-import { NewsImpactTool } from "./news";
+import { BloombergNewsTool } from "./bloomberg-news";
+import { GoogleNewsTool } from "./google-news";
+import { MacroLiquiditySnapshotTool } from "./macro";
+
 // import { SectorRotationValuationTool } from "./sector";
 
 /**
@@ -12,8 +15,9 @@ import { NewsImpactTool } from "./news";
  */
 export function getOverallReportTools() {
   return [
-    NewsImpactTool,
-    // MacroLiquiditySnapshotTool,
+    BloombergNewsTool,
+    GoogleNewsTool,
+    MacroLiquiditySnapshotTool,
     // SectorRotationValuationTool,
   ];
 }

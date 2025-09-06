@@ -247,3 +247,14 @@ SRV example (truncated):
 - Category mapping: `NIA -> 概览/催化`, `MLS -> 宏观环境`, `SRV -> 板块策略 & 个股表格`
 - Keep agent prompt stable; tools only populate structured fields and short reasoning phrases
 - Start with mock providers; swap in real providers behind adapter interfaces without schema changes
+
+---
+
+2. Caixin Global（财新英文版）
+   为什么：深度与专业性强，政策/产业链条报道质量高，可信度好
+   语言：英文（少量付费墙）
+   RSS：https://www.caixinglobal.com/rss.xml
+3. FT 中文网（FTChinese）
+   为什么：宏观/政策/国际关联分析扎实，编辑质量稳定，适合情境化判断
+   语言：中文（部分付费）
+   RSS：https://www.ftchinese.com/rss/news
