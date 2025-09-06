@@ -56,7 +56,9 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
   const googleModel = google(model);
 
   // Helper function to create tool definitions for AI SDK
-  const createToolDefinitions = (): Record<string, any> | undefined => {
+  const createToolDefinitions = (
+    traceId?: string,
+  ): Record<string, any> | undefined => {
     if (tools.length === 0) return undefined;
 
     // Convert tools array to ToolSet format (Record<string, Tool>)
@@ -72,6 +74,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
             const span = langfuse.span({
               name: `tool_execution_${tool.name}`,
               input,
+              traceId,
               metadata: { tool: tool.name },
             });
             try {
@@ -101,11 +104,11 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
   // Helper function to handle Langfuse tracing
   const withTracing = async <T>(
     operation: string,
-    fn: () => Promise<T>,
+    fn: (trace: any) => Promise<T>,
     metadata?: Record<string, any>,
   ): Promise<T> => {
     const langfuse = getLangfuse();
-    if (!langfuse) return fn();
+    if (!langfuse) return fn(undefined as any);
 
     const trace = langfuse.trace({
       name: `ai_agent_${operation}`,
@@ -119,7 +122,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
     });
 
     try {
-      const result = await fn();
+      const result = await fn(trace);
       trace.update({ output: "success" });
       return result;
     } catch (error) {
@@ -138,9 +141,10 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
   // Chat method with different output formats
   const chat = async (
     messages: Array<{ role: "user" | "assistant"; content: string }>,
+    parentTrace?: any,
   ) => {
-    return withTracing("chat", async () => {
-      const toolDefinitions = createToolDefinitions();
+    const run = async (trace: any) => {
+      const toolDefinitions = createToolDefinitions(trace?.id);
       const langfuse = getLangfuse();
 
       switch (outputFormat) {
@@ -168,6 +172,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
             name: "model_generation",
             model,
             input: { system: systemPrompt, messages },
+            traceId: trace?.id,
             metadata: {
               ...metadata,
               tools: tools.map((t) => t.name),
@@ -194,6 +199,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
             name: "model_generation",
             model,
             input: { system: systemPrompt, messages },
+            traceId: trace?.id,
             metadata: {
               ...metadata,
               tools: tools.map((t) => t.name),
@@ -217,14 +223,17 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
           return result;
         }
       }
-    });
+    };
+
+    if (parentTrace) return run(parentTrace);
+    return withTracing("chat", run);
   };
 
   // Generate method for single prompt
   const generate = async (prompt: string) => {
-    return withTracing("generate", async () => {
+    return withTracing("generate", async (trace) => {
       const messages = [{ role: "user" as const, content: prompt }];
-      return chat(messages);
+      return chat(messages, trace);
     });
   };
 
