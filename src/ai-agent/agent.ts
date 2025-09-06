@@ -201,12 +201,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
             model: googleModel,
             messages,
             tools: createToolDefinitions(trace?.id, planningGen?.id),
-            toolChoice:
-              toolChoice === "required"
-                ? "required"
-                : toolChoice === "none"
-                  ? "none"
-                  : "auto",
+            toolChoice,
             // enable multi-step so tool calls get executed and summarized
             stopWhen: (ctx: any) => ctx.stepNumber >= 6,
             system: systemPrompt,
@@ -283,12 +278,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
               toolDefinitions && Object.keys(toolDefinitions).length > 0
                 ? toolDefinitions
                 : undefined,
-            toolChoice:
-              toolChoice === "required"
-                ? "required"
-                : toolChoice === "none"
-                  ? "none"
-                  : "auto",
+            toolChoice,
             system: systemPrompt,
           });
 
