@@ -155,6 +155,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
     parentTrace?: any,
   ) => {
     const run = async (trace: any) => {
+      const toolDefinitions = createToolDefinitions(trace?.id);
       const langfuse = getLangfuse();
 
       switch (outputFormat) {
