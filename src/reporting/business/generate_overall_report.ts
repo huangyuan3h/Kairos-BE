@@ -39,17 +39,17 @@ export async function generateOverallReport(): Promise<OverallReport> {
     throw new Error("Langfuse not configured");
   }
 
+  // Create configuration
+  const asOfDate = new Date().toISOString().slice(0, 10);
   const prompt = await langfuse.getPrompt("report/overall_system");
-  if (!prompt?.prompt) {
+  if (!prompt) {
     throw new Error(
       "System prompt 'report/overall_system' not found in Langfuse",
     );
   }
 
-  const systemPrompt = prompt.prompt;
-
-  // Create configuration
-  const asOfDate = new Date().toISOString().slice(0, 10);
+  // Compile Langfuse prompt with variables (per official SDK example)
+  const systemPrompt: string = (prompt as any).compile({ asOfDate });
   const createdAt = new Date().toISOString();
 
   // Initialize repository for saving the final report
