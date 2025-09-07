@@ -1,5 +1,9 @@
 import { google } from "@ai-sdk/google";
-import { updateActiveObservation, updateActiveTrace } from "@langfuse/tracing";
+import {
+  startActiveObservation,
+  updateActiveObservation,
+  updateActiveTrace,
+} from "@langfuse/tracing";
 import { generateObject, generateText, streamObject, streamText } from "ai";
 import { z } from "zod";
 
@@ -83,61 +87,46 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
     const inputText = messages[messages.length - 1].content;
     const chatId = crypto.randomUUID();
     const userId = crypto.randomUUID(); // TODO: get userId from config
-    updateActiveObservation({
-      input: inputText,
+
+    return await startActiveObservation("ai-sdk-call", async () => {
+      updateActiveObservation({ input: inputText });
+      updateActiveTrace({
+        name: "chat-function",
+        sessionId: chatId,
+        userId,
+        input: inputText,
+      });
+
+      const toolsConfig =
+        tools &&
+        (Array.isArray(tools)
+          ? (tools as any)
+          : Object.keys(tools as any).length > 0
+            ? (tools as Record<string, any>)
+            : undefined);
+
+      const commonConfig = {
+        model: googleModel,
+        messages,
+        system: systemPrompt,
+        toolChoice,
+        schema,
+        tools: toolsConfig,
+        ...instrumentationConfig,
+      };
+
+      switch (outputFormat) {
+        case "stream-text":
+          return await streamText({ ...commonConfig });
+        case "stream-object":
+          return await streamObject({ ...commonConfig } as any);
+        case "object":
+          return await generateObject({ ...commonConfig } as any);
+        case "text":
+        default:
+          return await generateText({ ...commonConfig });
+      }
     });
-
-    updateActiveTrace({
-      name: "chat-function",
-      sessionId: chatId,
-      userId,
-      input: inputText,
-    });
-
-    const toolsConfig =
-      tools &&
-      (Array.isArray(tools)
-        ? (tools as any)
-        : Object.keys(tools as any).length > 0
-          ? (tools as Record<string, any>)
-          : undefined);
-
-    const commonConfig = {
-      model: googleModel,
-      messages,
-      system: systemPrompt,
-      toolChoice,
-      schema,
-      tools: toolsConfig,
-      ...instrumentationConfig,
-    };
-
-    switch (outputFormat) {
-      case "stream-text": {
-        return await streamText({
-          ...commonConfig,
-        });
-      }
-
-      case "stream-object": {
-        return await streamObject({
-          ...commonConfig,
-        } as any);
-      }
-
-      case "object": {
-        return await generateObject({
-          ...commonConfig,
-        } as any);
-      }
-
-      case "text":
-      default: {
-        return await generateText({
-          ...commonConfig,
-        });
-      }
-    }
   };
 
   const generate = async (prompt: string) => {
