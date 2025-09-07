@@ -39,6 +39,7 @@ export interface AiAgent {
   chat: (
     messages: Array<{ role: "user" | "assistant"; content: string }>,
   ) => Promise<any>;
+  generate: (prompt: string) => Promise<any>;
 }
 
 // Factory function to create AI agent
@@ -75,69 +76,78 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
   //   return toolSet;
   // };
 
-  // Chat method with different output formats
+  // Chat method with different output formats - return the actual result
   const chat = async (
     messages: Array<{ role: "user" | "assistant"; content: string }>,
   ) => {
-    const run = async () => {
-      const inputText = messages[messages.length - 1].content;
-      const chatId = crypto.randomUUID();
-      const userId = crypto.randomUUID(); // TODO: get userId from config
-      updateActiveObservation({
-        input: inputText,
-      });
+    const inputText = messages[messages.length - 1].content;
+    const chatId = crypto.randomUUID();
+    const userId = crypto.randomUUID(); // TODO: get userId from config
+    updateActiveObservation({
+      input: inputText,
+    });
 
-      updateActiveTrace({
-        name: "chat-function",
-        sessionId: chatId,
-        userId,
-        input: inputText,
-      });
+    updateActiveTrace({
+      name: "chat-function",
+      sessionId: chatId,
+      userId,
+      input: inputText,
+    });
 
-      const commonConfig = {
-        model: googleModel,
-        messages,
-        system: systemPrompt,
-        toolChoice,
-        schema,
-        tools:
-          tools && Object.keys(tools as any).length > 0
-            ? (tools as Record<string, any>)
-            : undefined,
-        ...instrumentationConfig,
-      };
+    const toolsConfig =
+      tools &&
+      (Array.isArray(tools)
+        ? (tools as any)
+        : Object.keys(tools as any).length > 0
+          ? (tools as Record<string, any>)
+          : undefined);
 
-      switch (outputFormat) {
-        case "stream-text": {
-          return streamText({
-            ...commonConfig,
-          });
-        }
-
-        case "stream-object":
-          return streamObject({
-            ...commonConfig,
-          } as any);
-
-        case "object":
-          return generateObject({
-            ...commonConfig,
-          } as any);
-
-        case "text":
-        default: {
-          return generateText({
-            ...commonConfig,
-          });
-        }
-      }
+    const commonConfig = {
+      model: googleModel,
+      messages,
+      system: systemPrompt,
+      toolChoice,
+      schema,
+      tools: toolsConfig,
+      ...instrumentationConfig,
     };
 
-    return run;
+    switch (outputFormat) {
+      case "stream-text": {
+        return await streamText({
+          ...commonConfig,
+        });
+      }
+
+      case "stream-object": {
+        return await streamObject({
+          ...commonConfig,
+        } as any);
+      }
+
+      case "object": {
+        return await generateObject({
+          ...commonConfig,
+        } as any);
+      }
+
+      case "text":
+      default: {
+        return await generateText({
+          ...commonConfig,
+        });
+      }
+    }
+  };
+
+  const generate = async (prompt: string) => {
+    const messages = [{ role: "user" as const, content: prompt }];
+    return await chat(messages);
   };
 
   return {
     chat,
+    generate,
   };
 }
 

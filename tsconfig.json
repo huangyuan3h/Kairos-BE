@@ -11,6 +11,8 @@
     "strict": true,
     "skipLibCheck": true,
     "baseUrl": ".",
+    "sourceMap": true,
+    "inlineSourceMap": false,
     "paths": {
       "@src/*": ["src/*"],
       "@/ai-tools": ["src/ai-tools/index"],
