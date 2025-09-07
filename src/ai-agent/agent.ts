@@ -9,21 +9,14 @@ import { instrumentationConfig } from "./telemetry/instrumentation";
 // Default schema for object generation when no specific schema is provided
 const defaultObjectSchema = z.any();
 
-// Tool definition interface
-export interface AiTool {
-  name: string;
-  description: string;
-  schema: z.ZodSchema<any>;
-  execute: (input: any) => Promise<any>;
-}
-
 // Output format types
 export type OutputFormat = "text" | "object" | "stream-text" | "stream-object";
 
 // AI Agent configuration
 export interface AiAgentConfig {
   model?: string;
-  tools?: AiTool[]; // todo: change to native type
+  // Native AI SDK tools object: { [toolName]: Tool }
+  tools?: Record<string, any>;
   outputFormat?: OutputFormat;
   temperature?: number;
   maxTokens?: number;
@@ -52,7 +45,7 @@ export interface AiAgent {
 export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
   const {
     model = "gemini-2.5-flash",
-    // tools = [],
+    tools = {},
     outputFormat = "text",
     systemPrompt = "You are a helpful AI assistant.",
     schema = defaultObjectSchema,
@@ -107,7 +100,10 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
         system: systemPrompt,
         toolChoice,
         schema,
-        // tools,
+        tools:
+          tools && Object.keys(tools as any).length > 0
+            ? (tools as Record<string, any>)
+            : undefined,
         ...instrumentationConfig,
       };
 
