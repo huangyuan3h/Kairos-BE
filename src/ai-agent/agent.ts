@@ -1,7 +1,10 @@
 import { google } from "@ai-sdk/google";
+import { updateActiveObservation, updateActiveTrace } from "@langfuse/tracing";
 import { generateObject, generateText, streamObject, streamText } from "ai";
 import { z } from "zod";
-import { getLangfuse } from "./telemetry/langfuse";
+
+import crypto from "crypto";
+import { instrumentationConfig } from "./telemetry/instrumentation";
 
 // Default schema for object generation when no specific schema is provided
 const defaultObjectSchema = z.any();
@@ -20,7 +23,7 @@ export type OutputFormat = "text" | "object" | "stream-text" | "stream-object";
 // AI Agent configuration
 export interface AiAgentConfig {
   model?: string;
-  tools?: AiTool[];
+  tools?: AiTool[]; // todo: change to native type
   outputFormat?: OutputFormat;
   temperature?: number;
   maxTokens?: number;
@@ -43,19 +46,16 @@ export interface AiAgent {
   chat: (
     messages: Array<{ role: "user" | "assistant"; content: string }>,
   ) => Promise<any>;
-  generate: (prompt: string) => Promise<any>;
 }
 
 // Factory function to create AI agent
 export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
   const {
     model = "gemini-2.5-flash",
-    tools = [],
+    // tools = [],
     outputFormat = "text",
     systemPrompt = "You are a helpful AI assistant.",
     schema = defaultObjectSchema,
-    userId,
-    metadata: _unusedMeta = {},
     toolChoice = "auto",
   } = config;
 
@@ -63,168 +63,85 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
   const googleModel = google(model);
 
   // Helper function to create tool definitions for AI SDK
-  const createToolDefinitions = (
-    traceId?: string,
-    parentObservationId?: string,
-  ): Record<string, any> | undefined => {
-    if (tools.length === 0) return undefined;
+  // const createToolDefinitions = (): Record<string, any> | undefined => {
+  //   if (tools.length === 0) return undefined;
 
-    // Convert tools array to ToolSet format (Record<string, Tool>)
-    const toolSet: Record<string, any> = {};
-    tools.forEach((tool) => {
-      toolSet[tool.name] = {
-        name: tool.name,
-        description: tool.description,
-        inputSchema: tool.schema,
-        execute: async (input: any) => {
-          const langfuse = getLangfuse();
-          if (langfuse) {
-            const startTime = new Date();
-            const span = langfuse.span({
-              name: `tool_execution_${tool.name}`,
-              input,
-              traceId,
-              parentObservationId,
-              startTime,
-              metadata: { tool: tool.name },
-            });
-            try {
-              const result = await tool.execute(input);
-              span.update({
-                output: result,
-                endTime: new Date(),
-              });
-              return result;
-            } catch (error) {
-              span.update({
-                output: `error: ${
-                  error instanceof Error ? error.message : String(error)
-                }`,
-                endTime: new Date(),
-              });
-              throw error;
-            } finally {
-              await span.end();
-            }
-          } else {
-            return await tool.execute(input);
-          }
-        },
-      };
-    });
+  //   // Convert tools array to ToolSet format (Record<string, Tool>)
+  //   const toolSet: Record<string, any> = {};
+  //   tools.forEach((tool) => {
+  //     toolSet[tool.name] = {
+  //       name: tool.name,
+  //       description: tool.description,
+  //       inputSchema: tool.schema,
+  //       execute: async (input: any) => {
+  //         return await tool.execute(input);
+  //       },
+  //     };
+  //   });
 
-    return toolSet;
-  };
-
-  // Helper function to handle Langfuse tracing
-  const withTracing = async <T>(
-    operation: string,
-    fn: (trace: any) => Promise<T>,
-    metadata?: Record<string, any>,
-  ): Promise<T> => {
-    const langfuse = getLangfuse();
-    if (!langfuse) return fn(undefined as any);
-
-    const trace = langfuse.trace({
-      name: `ai_agent_${operation}`,
-      userId,
-      metadata: {
-        model,
-        outputFormat,
-        toolCount: tools.length,
-        ...metadata,
-      },
-    });
-
-    try {
-      const result = await fn(trace);
-      trace.update({ output: "success" });
-      return result;
-    } catch (error) {
-      trace.update({
-        output: `error: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      });
-      throw error;
-    } finally {
-      // Note: Langfuse trace doesn't have an end method in this version
-      // The trace will be automatically finalized when the process ends
-      await langfuse.shutdownAsync?.();
-    }
-  };
+  //   return toolSet;
+  // };
 
   // Chat method with different output formats
   const chat = async (
     messages: Array<{ role: "user" | "assistant"; content: string }>,
-    parentTrace?: any,
   ) => {
-    const run = async (trace: any) => {
-      const _langfuse = getLangfuse();
+    const run = async () => {
+      const inputText = messages[messages.length - 1].content;
+      const chatId = crypto.randomUUID();
+      const userId = crypto.randomUUID(); // TODO: get userId from config
+      updateActiveObservation({
+        input: inputText,
+      });
+
+      updateActiveTrace({
+        name: "chat-function",
+        sessionId: chatId,
+        userId,
+        input: inputText,
+      });
+
+      const commonConfig = {
+        model: googleModel,
+        messages,
+        system: systemPrompt,
+        toolChoice,
+        schema,
+        // tools,
+        ...instrumentationConfig,
+      };
 
       switch (outputFormat) {
         case "stream-text": {
-          const toolDefinitions = createToolDefinitions(trace?.id);
           return streamText({
-            model: googleModel,
-            messages,
-            tools:
-              toolDefinitions && Object.keys(toolDefinitions).length > 0
-                ? toolDefinitions
-                : undefined,
-            toolChoice,
-            system: systemPrompt,
+            ...commonConfig,
           });
         }
 
         case "stream-object":
           return streamObject({
-            model: googleModel,
-            messages,
-            schema: schema as any,
-            system: systemPrompt,
+            ...commonConfig,
           } as any);
 
         case "object":
           return generateObject({
-            model: googleModel,
-            messages,
-            schema: schema as any,
-            system: systemPrompt,
+            ...commonConfig,
           } as any);
 
         case "text":
         default: {
-          const toolDefinitions = createToolDefinitions(trace?.id);
           return generateText({
-            model: googleModel,
-            messages,
-            tools:
-              toolDefinitions && Object.keys(toolDefinitions).length > 0
-                ? toolDefinitions
-                : undefined,
-            toolChoice,
-            system: systemPrompt,
+            ...commonConfig,
           });
         }
       }
     };
 
-    if (parentTrace) return run(parentTrace);
-    return withTracing("chat", run);
-  };
-
-  // Generate method for single prompt
-  const generate = async (prompt: string) => {
-    return withTracing("generate", async (trace) => {
-      const messages = [{ role: "user" as const, content: prompt }];
-      return chat(messages, trace);
-    });
+    return run;
   };
 
   return {
     chat,
-    generate,
   };
 }
 
