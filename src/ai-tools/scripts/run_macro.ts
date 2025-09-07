@@ -2,6 +2,8 @@
 /* eslint-disable no-console */
 
 import { MacroLiquiditySnapshotTool } from "..";
+import type { Result } from "../base";
+import type { MacroSnapshotOutput } from "../macro";
 
 function parseArgs(): { windowDays: number } {
   const windowDays = Number(process.argv[2] ?? 7);
@@ -14,9 +16,12 @@ function formatNumber(n: number | undefined) {
 
 async function main() {
   const args = parseArgs();
-  const res = await MacroLiquiditySnapshotTool.execute({
-    windowDays: args.windowDays,
-  });
+  const res = (await (MacroLiquiditySnapshotTool as any).execute(
+    {
+      windowDays: args.windowDays,
+    },
+    {},
+  )) as Result<MacroSnapshotOutput>;
 
   if (!res.ok) {
     console.error("Error:", res.error);

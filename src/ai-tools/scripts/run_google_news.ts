@@ -2,6 +2,8 @@
 /* eslint-disable no-console */
 
 import { GoogleNewsTool } from "..";
+import type { Result } from "../base";
+import type { GoogleNewsOutput } from "../google-news";
 
 function parseArgs(): {
   windowHours: number;
@@ -17,10 +19,13 @@ function parseArgs(): {
 
 async function main() {
   const args = parseArgs();
-  const result = await GoogleNewsTool.execute({
-    windowHours: args.windowHours,
-    limit: args.limit,
-  });
+  const result = (await (GoogleNewsTool as any).execute(
+    {
+      windowHours: args.windowHours,
+      limit: args.limit,
+    },
+    {},
+  )) as Result<GoogleNewsOutput>;
   if (!result.ok) {
     console.error("Error:", result.error);
     process.exit(1);

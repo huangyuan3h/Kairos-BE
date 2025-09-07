@@ -1,4 +1,3 @@
-import { getLangfuse } from "@src/ai-agent";
 import { createObjectAgentWithSchema } from "@src/ai-agent/agent";
 import { getOverallReportTools } from "@src/ai-tools";
 import { DynamoTable, getDynamoTableName } from "@src/util/dynamodb";
@@ -33,23 +32,13 @@ export async function generateOverallReport(): Promise<OverallReport> {
     );
   }
 
-  // Get system prompt from Langfuse
-  const langfuse = getLangfuse();
-  if (!langfuse) {
-    throw new Error("Langfuse not configured");
-  }
-
   // Create configuration
   const asOfDate = new Date().toISOString().slice(0, 10);
-  const prompt = await langfuse.getPrompt("report/overall_system");
-  if (!prompt) {
-    throw new Error(
-      "System prompt 'report/overall_system' not found in Langfuse",
-    );
-  }
-
-  // Compile Langfuse prompt with variables (per official SDK example)
-  const systemPrompt: string = (prompt as any).compile({ asOfDate });
+  // Load system prompt from environment or fallback
+  const basePrompt =
+    process.env.OVERALL_SYSTEM_PROMPT ??
+    "You are a professional financial analyst. Produce a comprehensive, well-structured Chinese market report with actionable insights.";
+  const systemPrompt: string = `${basePrompt}\n\n[asOfDate]: ${asOfDate}`;
   const createdAt = new Date().toISOString();
 
   // Initialize repository for saving the final report
