@@ -17,6 +17,6 @@
       "@/ai-agent/*": ["src/ai-agent/*"]
     }
   },
-  "include": ["sst.config.ts", "src/**/*.ts", "functions/**/*.ts"],
-  "exclude": ["node_modules"]
+  "include": ["src/**/*.ts", "functions/**/*.ts"],
+  "exclude": ["node_modules", "deploy/**", "sst.config.ts", ".sst/**"]
 }
