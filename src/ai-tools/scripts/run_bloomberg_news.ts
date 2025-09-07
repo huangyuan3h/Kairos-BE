@@ -2,6 +2,8 @@
 /* eslint-disable no-console */
 
 import { BloombergNewsTool } from "..";
+import type { Result } from "../base";
+import type { BloombergNewsOutput } from "../bloomberg-news";
 
 function parseArgs(): {
   windowHours: number;
@@ -17,10 +19,13 @@ function parseArgs(): {
 
 async function main() {
   const args = parseArgs();
-  const result = await BloombergNewsTool.execute({
-    windowHours: args.windowHours,
-    limit: args.limit,
-  });
+  const result = (await (BloombergNewsTool as any).execute(
+    {
+      windowHours: args.windowHours,
+      limit: args.limit,
+    },
+    {},
+  )) as Result<BloombergNewsOutput>;
   if (!result.ok) {
     console.error("Error:", result.error);
     process.exit(1);

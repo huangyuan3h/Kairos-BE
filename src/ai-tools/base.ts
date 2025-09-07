@@ -22,7 +22,11 @@ export enum ToolCategory {
  * Plain-object AI Tool contract
  */
 // Use AI SDK native Tool type for maximum compatibility
-export type AiTool<TInput = unknown, TOutput = unknown> = Tool<TInput, TOutput>;
+// Align OUTPUT type with actual runtime result shape (Result<TOutput>)
+export type AiTool<TInput = unknown, TOutput = unknown> = Tool<
+  TInput,
+  Result<TOutput>
+>;
 
 /**
  * Helper to define a tool with input validation and unified error handling.
