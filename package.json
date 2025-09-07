@@ -46,6 +46,7 @@
     "@aws-sdk/client-secrets-manager": "^3.879.0",
     "@aws-sdk/lib-dynamodb": "^3.624.0",
     "@google/generative-ai": "^0.24.1",
+    "@langfuse/client": "^4.0.0",
     "@langfuse/otel": "^4.0.0",
     "@langfuse/tracing": "^4.0.0",
     "@opentelemetry/sdk-node": "^0.204.0",
@@ -53,6 +54,7 @@
     "aws-cdk-lib": "^2.208.0",
     "constructs": "^10.4.2",
     "dotenv": "^17.2.1",
+    "ts-node": "^10.9.2",
     "zod": "^3.25.76"
   }
 }

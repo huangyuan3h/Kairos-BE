@@ -51,7 +51,7 @@ export async function createCronJobs(
         GOOGLE_GENERATIVE_AI_API_KEY: geminiApiKey,
         LANGFUSE_PUBLIC_KEY: langfuse.LANGFUSE_PUBLIC_KEY,
         LANGFUSE_SECRET_KEY: langfuse.LANGFUSE_SECRET_KEY,
-        LANGFUSE_HOST: langfuse.LANGFUSE_HOST,
+        LANGFUSE_BASE_URL: langfuse.LANGFUSE_HOST,
       },
     },
   });

@@ -1,6 +1,5 @@
 import { LangfuseSpanProcessor } from "@langfuse/otel";
 import { updateActiveObservation, updateActiveTrace } from "@langfuse/tracing";
-import { trace } from "@opentelemetry/api";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 
 const langfuseSpanProcessor = new LangfuseSpanProcessor({});
@@ -22,8 +21,5 @@ export const instrumentationConfig = {
     updateActiveTrace({
       output: result.content,
     });
-
-    // End span manually after stream has finished
-    trace.getActiveSpan()?.end();
   },
 };

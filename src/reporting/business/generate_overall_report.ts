@@ -56,9 +56,7 @@ export async function generateOverallReport(): Promise<OverallReport> {
   });
 
   // Generate structured report object using AI agent
-  const response = await aiAgent.chat([
-    { role: "user", content: "Generate a report" },
-  ]);
+  const response = await aiAgent.generate("");
 
   // Extract structured data from response
   // Note: ai.generateObject returns an object with the parsed payload on `object`
