@@ -55,7 +55,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
     systemPrompt = "You are a helpful AI assistant.",
     schema = defaultObjectSchema,
     userId,
-    metadata = {},
+    metadata: _unusedMeta = {},
     toolChoice = "auto",
   } = config;
 
@@ -160,7 +160,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
     parentTrace?: any,
   ) => {
     const run = async (trace: any) => {
-      const langfuse = getLangfuse();
+      const _langfuse = getLangfuse();
 
       switch (outputFormat) {
         case "stream-text": {
@@ -185,93 +185,18 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
             system: systemPrompt,
           } as any);
 
-        case "object": {
-          const startTime = new Date();
-          const planningGen = langfuse?.generation({
-            name: "model_generation_plan",
-            model,
-            input: { system: systemPrompt, messages },
-            traceId: trace?.id,
-            startTime,
-            metadata: { ...metadata, phase: "plan-with-tools" },
-          });
-
-          // Step 1: run a multi-step tool-enabled text generation to actually call tools
-          const planningResult = await generateText({
+        case "object":
+          return generateObject({
             model: googleModel,
             messages,
-            tools: createToolDefinitions(trace?.id, planningGen?.id),
-            toolChoice,
-            // enable multi-step so tool calls get executed and summarized
-            stopWhen: (ctx: any) => ctx.stepNumber >= 6,
-            system: systemPrompt,
-          } as any);
-
-          try {
-            planningGen?.update({ output: (planningResult as any)?.text });
-          } finally {
-            await planningGen?.end();
-          }
-
-          // Step 2: synthesize final structured object based on the tool-informed text
-          const synthesisGen = langfuse?.generation({
-            name: "model_generation_synthesis",
-            model,
-            input: {
-              system: systemPrompt,
-              messages: [
-                ...messages,
-                { role: "assistant", content: (planningResult as any)?.text },
-              ],
-            },
-            traceId: trace?.id,
-            metadata: { ...metadata, phase: "synthesize-object" },
-          });
-
-          const objectResult = await generateObject({
-            model: googleModel,
-            messages: [
-              ...messages,
-              {
-                role: "assistant" as const,
-                content: (planningResult as any)?.text,
-              },
-            ],
             schema: schema as any,
             system: systemPrompt,
           } as any);
 
-          try {
-            const output = (objectResult as any)?.object ?? objectResult;
-            synthesisGen?.update({ output });
-          } finally {
-            await synthesisGen?.end();
-          }
-
-          return objectResult;
-        }
-
         case "text":
         default: {
-          const startTime = new Date();
-          const generation = langfuse?.generation({
-            name: "model_generation",
-            model,
-            input: { system: systemPrompt, messages },
-            traceId: trace?.id,
-            startTime,
-            metadata: {
-              ...metadata,
-              tools: tools.map((t) => t.name),
-              outputFormat,
-            },
-          });
-
-          const toolDefinitions = createToolDefinitions(
-            trace?.id,
-            generation?.id,
-          );
-          const result = await generateText({
+          const toolDefinitions = createToolDefinitions(trace?.id);
+          return generateText({
             model: googleModel,
             messages,
             tools:
@@ -281,17 +206,6 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
             toolChoice,
             system: systemPrompt,
           });
-
-          try {
-            const output = result?.text || result;
-            generation?.update({
-              output,
-              endTime: new Date(),
-            });
-          } finally {
-            await generation?.end();
-          }
-          return result;
         }
       }
     };
@@ -341,25 +255,3 @@ export function createObjectAgentWithSchema(
 ): AiAgent {
   return createAiAgent({ ...config, outputFormat: "object" });
 }
-
-// Example usage with custom schema:
-//
-// ```typescript
-// import { z } from "zod";
-// import { createObjectAgentWithSchema } from "@src/ai-agent/agent";
-//
-// const userSchema = z.object({
-//   name: z.string().describe("User's full name"),
-//   age: z.number().describe("User's age in years"),
-//   email: z.string().email().describe("User's email address"),
-// });
-//
-// const agent = createObjectAgentWithSchema({
-//   model: "gemini-2.0-flash-exp",
-//   schema: userSchema,
-//   systemPrompt: "You are a helpful assistant that extracts user information.",
-// });
-//
-// const result = await agent.generate("Extract info from: John Doe, 30 years old, john@example.com");
-// // Result will be: { name: "John Doe", age: 30, email: "john@example.com" }
-// ```
