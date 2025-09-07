@@ -1,3 +1,5 @@
+import type { Tool } from "ai";
+import { tool as aiTool } from "ai";
 import { z } from "zod";
 
 /**
@@ -19,13 +21,8 @@ export enum ToolCategory {
 /**
  * Plain-object AI Tool contract
  */
-export interface AiTool<TInput = unknown, TOutput = unknown> {
-  name: string;
-  description: string;
-  category: ToolCategory;
-  schema: z.ZodType<TInput, z.ZodTypeDef, unknown>;
-  execute: (input: unknown) => Promise<Result<TOutput>>;
-}
+// Use AI SDK native Tool type for maximum compatibility
+export type AiTool<TInput = unknown, TOutput = unknown> = Tool<TInput, TOutput>;
 
 /**
  * Helper to define a tool with input validation and unified error handling.
@@ -33,34 +30,17 @@ export interface AiTool<TInput = unknown, TOutput = unknown> {
 export function defineTool<TInput, TOutput>(args: {
   name: string;
   description: string;
-  category: ToolCategory;
+  category: ToolCategory; // kept for compatibility, not used by AI SDK
   schema: z.ZodType<TInput, z.ZodTypeDef, unknown>;
   handler: (input: TInput) => Promise<Result<TOutput>> | Result<TOutput>;
 }): AiTool<TInput, TOutput> {
-  const { name, description, category, schema, handler } = args;
+  const { description, schema, handler } = args;
 
-  return {
-    name,
+  // Delegate to AI SDK's `tool` helper; validation still ensured via schema
+  return aiTool<TInput, Result<TOutput>>({
     description,
-    category,
-    schema,
-    async execute(input: unknown): Promise<Result<TOutput>> {
-      const parsed = schema.safeParse(input);
-      if (!parsed.success) {
-        return {
-          ok: false,
-          error: `Invalid input for ${name}: ${parsed.error.message}`,
-        };
-      }
-      try {
-        const result = await handler(parsed.data);
-        return result;
-      } catch (err) {
-        return {
-          ok: false,
-          error: err instanceof Error ? err.message : String(err),
-        };
-      }
-    },
-  };
+    inputSchema: schema as unknown as any,
+    // Execute returns our Result<TOutput> shape which models can read/format
+    execute: async (input: TInput) => handler(input),
+  }) as AiTool<TInput, TOutput>;
 }

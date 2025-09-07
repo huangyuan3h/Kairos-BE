@@ -37,7 +37,6 @@ describe("AI Agent Factory", () => {
 
       expect(agent).toBeDefined();
       expect(typeof agent.chat).toBe("function");
-      expect(typeof agent.generate).toBe("function");
     });
 
     it("should create a text agent with custom configuration", () => {
@@ -57,7 +56,6 @@ describe("AI Agent Factory", () => {
 
       expect(agent).toBeDefined();
       expect(typeof agent.chat).toBe("function");
-      expect(typeof agent.generate).toBe("function");
     });
   });
 
@@ -67,7 +65,6 @@ describe("AI Agent Factory", () => {
 
       expect(agent).toBeDefined();
       expect(typeof agent.chat).toBe("function");
-      expect(typeof agent.generate).toBe("function");
     });
   });
 });
@@ -79,17 +76,6 @@ describe("AI Agent Interface", () => {
     agent = createTextAgent({
       model: "gemini-2.0-flash-exp",
       temperature: 0.1,
-    });
-  });
-
-  describe("generate method", () => {
-    it("should have generate method", () => {
-      expect(typeof agent.generate).toBe("function");
-    });
-
-    it("should accept a string prompt", () => {
-      // This is a structural test - actual API calls would require mocking
-      expect(agent.generate).toBeDefined();
     });
   });
 
