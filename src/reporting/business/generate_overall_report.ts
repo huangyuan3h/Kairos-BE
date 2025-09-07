@@ -63,15 +63,13 @@ export async function generateOverallReport(): Promise<OverallReport> {
     tools: getOverallReportTools(), // Provide NIA/MLS/SRV tools to the agent
     systemPrompt,
     toolChoice: { type: "tool", toolName: "google_news" }, // Force the agent to use at least one tool
-    metadata: {
-      promptKey: "report/overall_system",
-      promptVersion: (prompt as any)?.version,
-    },
     schema: reportSchema, // Use custom schema for report generation
   });
 
   // Generate structured report object using AI agent
-  const response = await aiAgent.generate("");
+  const response = await aiAgent.chat([
+    { role: "user", content: "Generate a report" },
+  ]);
 
   // Extract structured data from response
   // Note: ai.generateObject returns an object with the parsed payload on `object`
