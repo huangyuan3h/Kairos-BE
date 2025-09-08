@@ -9,7 +9,7 @@ import type { OverallReport } from "../types/domain";
 
 /**
  * Simplified AI Agent-driven overall report generation workflow.
- * Uses Gemini 2.5 Flash with system prompt from Langfuse.
+ * Uses Gemini 2.5 Flash with a strict, news-focused system prompt.
  */
 
 // Define schema for report generation
@@ -35,10 +35,16 @@ export async function generateOverallReport(): Promise<OverallReport> {
 
   // Create configuration
   const asOfDate = new Date().toISOString().slice(0, 10);
-  // Load system prompt from Langfuse
+
+  // Require Langfuse-managed prompt; do not fallback locally
   const langfuse = new LangfuseClient();
-  const prompt = await langfuse.prompt.get("report/overall_system");
-  const systemPrompt: string = prompt.compile({ asOfDate });
+  const p = await langfuse.prompt.get("report/overall_system_v2");
+  if (!p) {
+    throw new Error(
+      "Missing Langfuse prompt: 'report/overall_system_v2'. Please create it before generating reports.",
+    );
+  }
+  const systemPrompt: string = p.compile({ asOfDate });
   const createdAt = new Date().toISOString();
 
   // Initialize repository for saving the final report
@@ -49,9 +55,10 @@ export async function generateOverallReport(): Promise<OverallReport> {
   // Initialize AI agent with Gemini 2.5 Flash and custom schema
   const aiAgent = createObjectAgentWithSchema({
     model: "gemini-2.5-flash", // Use gemini-2.5-flash as requested
-    tools: getOverallReportTools(), // Provide NIA/MLS/SRV tools to the agent
+    tools: getOverallReportTools(), // Provide NEWS + MACRO tools as a named set
     systemPrompt,
-    toolChoice: { type: "tool", toolName: "google_news" }, // Force the agent to use at least one tool
+    // Require at least one tool call; system prompt instructs which tools to call and how
+    toolChoice: "required",
     schema: reportSchema, // Use custom schema for report generation
   });
 

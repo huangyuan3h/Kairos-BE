@@ -19,26 +19,381 @@ const inputSchema = z.object({
 });
 
 export type MacroSnapshotOutput = {
-  snapshot: {
-    rates: {
-      UST2Y?: number;
-      UST10Y?: number;
-      CN_R007?: number;
-      CN_MLF?: number;
-    };
-    fx: { DXY?: number };
-    vol: { VIX?: number; VSTOXX?: number };
-    commodities: { WTI?: number; GOLD?: number; COPPER?: number };
-    deltas: Record<string, number>;
-  };
+  /** ISO8601 timestamp when the snapshot was taken */
+  asOf: string;
+  /** Rolling window in days used to compute short-term deltas */
+  windowDays: number;
+  /** Simple risk regime classification derived from vol and rate/USD deltas */
   regime: "RiskOn" | "Neutral" | "RiskOff";
+  /** Key rates in percent; UST10Y normalized to percent (not x10); CN_* best-effort */
+  rates: { UST2Y?: number; UST10Y?: number; CN_R007?: number; CN_MLF?: number };
+  /** FX basket; currently DXY level */
+  fx: { DXY?: number };
+  /** Spot/implied vols; VSTOXX may be unavailable depending on providers */
+  vol: { VIX?: number; VSTOXX?: number };
+  /** Core commodities in USD; levels */
+  commodities: { WTI?: number; GOLD?: number; COPPER?: number };
+  /** Short-window changes for selected metrics; sign indicates direction */
+  deltas: Record<string, number>;
+  /** Concise, declarative bullets summarizing directionality for report drafting */
   bullets: string[];
-  meta: {
-    windowDays: number;
-    asOf: string;
-    sources?: string[];
-  };
+  /** Source hints for downstream link rendering and observability */
+  sources?: string[];
 };
+
+/**
+ * Standalone resolver for CN_R007 (Shibor 7D as proxy for R007).
+ * Returns the latest value if found.
+ */
+export async function fetchCnR007Standalone(
+  _debug = false,
+): Promise<number | undefined> {
+  type AnyFetch = (input: any, init?: any) => Promise<any>;
+  const fetchFn: AnyFetch = (globalThis as any).fetch as AnyFetch;
+  const urls = [
+    "https://www.shibor.org/shibor/",
+    "http://www.shibor.org/shibor/",
+  ];
+  const headers = {
+    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "User-Agent":
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+  } as const;
+  function extract(text: string): number | undefined {
+    const tablePatterns = [
+      /<td[^>]*>\s*(1W|1周|一周)\s*<\/td>\s*<td[^>]*>\s*([0-9]+(?:\.[0-9]+)?)\s*<\/td>/gi,
+      /<td[^>]*>\s*(1W|1周|一周)\s*<\/td>[\s\S]*?<td[^>]*>\s*([0-9]+(?:\.[0-9]+)?)\s*<\/td>/gi,
+      /<[^>]*(?:class|id)[^>]*(?:1w|week)[^>]*>\s*([0-9]+(?:\.[0-9]+)?)\s*</gi,
+      /<tr[^>]*>[\s\S]*?(?:1W|1周|一周)[\s\S]*?([0-9]+(?:\.[0-9]+)?)[\s\S]*?<\/tr>/gi,
+    ];
+    for (const re of tablePatterns) {
+      re.lastIndex = 0;
+      const matches = Array.from(text.matchAll(re));
+      for (const m of matches) {
+        const num = m[2] || m[1];
+        if (num) {
+          const v = Number(num);
+          if (Number.isFinite(v) && v > 0 && v < 20) return v;
+        }
+      }
+    }
+    const idx = text.toLowerCase().indexOf("1w");
+    if (idx >= 0) {
+      const slice = text.slice(
+        Math.max(0, idx - 200),
+        Math.min(text.length, idx + 200),
+      );
+      const num = slice.match(/([0-9]+(?:\.[0-9]+)?)(?=\s*%?)/);
+      if (num) {
+        const v = Number(num[1]);
+        if (Number.isFinite(v)) return v;
+      }
+    }
+    return undefined;
+  }
+  for (const u of urls) {
+    try {
+      const AbortCtor = (globalThis as any).AbortController as any;
+      const controller = new AbortCtor();
+      const to = (globalThis as any).setTimeout(
+        () => controller.abort(),
+        7000,
+      ) as unknown as number;
+      const res = await fetchFn(u, { headers, signal: controller.signal });
+      (globalThis as any).clearTimeout(to);
+      if (!res.ok) continue;
+      const html = await res.text();
+      const val = extract(html);
+      if (typeof val === "number") return val;
+    } catch {
+      // continue
+    }
+  }
+  // TradingEconomics fallback
+  const cred = "guest:guest";
+  const candidates = [
+    "/shibor/7d",
+    "/China/shibor 7 day",
+    "/China/Interbank%20Rate",
+  ];
+  for (const path of candidates) {
+    const sep = path.includes("?") ? "&" : "?";
+    const url = `https://api.tradingeconomics.com${path}${sep}c=${encodeURIComponent(cred)}&format=json`;
+    try {
+      const AbortCtor = (globalThis as any).AbortController as any;
+      const controller = new AbortCtor();
+      const to = (globalThis as any).setTimeout(
+        () => controller.abort(),
+        7000,
+      ) as unknown as number;
+      const res = await fetchFn(url, {
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+      (globalThis as any).clearTimeout(to);
+      if (!res.ok) continue;
+      const json = await res.json();
+      const arr = Array.isArray(json) ? json : [json];
+      for (const row of arr) {
+        const desc = String(
+          row?.Category || row?.Indicator || row?.shortname || "",
+        ).toLowerCase();
+        if (!desc.includes("shibor") && !desc.includes("interbank")) continue;
+        const v = Number(row?.LatestValue ?? row?.Last ?? row?.Value);
+        if (Number.isFinite(v)) return v;
+      }
+    } catch {
+      // continue
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Standalone resolver for CN_MLF rate.
+ */
+export async function fetchCnMlfStandalone(): Promise<number | undefined> {
+  type AnyFetch = (input: any, init?: any) => Promise<any>;
+  const fetchFn: AnyFetch = (globalThis as any).fetch as AnyFetch;
+  const listUrls = [
+    "http://www.pbc.gov.cn/zhengcehuobisi/125207/125213/125446/125873/index.html",
+  ];
+  const headers = {
+    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "User-Agent":
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0.0.0 Safari/537.36",
+  } as const;
+  const detailPatterns = [
+    /MLF[^)]*?rate[^0-9]*?([0-9]+(?:\.[0-9]+)?)%/i,
+    /中期借贷便利（?MLF）?利率为?\s*([0-9]+(?:\.[0-9]+)?)%/,
+    /MLF\s*利率[^0-9]*?([0-9]+(?:\.[0-9]+)?)%/i,
+    /medium.*?lending.*?facility.*?rate[^0-9]*?([0-9]+(?:\.[0-9]+)?)%/i,
+  ];
+  for (const listUrl of listUrls) {
+    try {
+      const AbortCtor = (globalThis as any).AbortController as any;
+      const ctrl1 = new AbortCtor();
+      const t1 = (globalThis as any).setTimeout(
+        () => ctrl1.abort(),
+        7000,
+      ) as unknown as number;
+      const res = await fetchFn(listUrl, { headers, signal: ctrl1.signal });
+      (globalThis as any).clearTimeout(t1);
+      if (!res.ok) continue;
+      const listHtml = await res.text();
+      const linkPatterns = [
+        /href="(\/zhengcehuobisi\/125207\/125213\/125446\/125873\/\d+\/index\.html)"/i,
+        /<a[^>]+href="([^"]+\/125873\/\d+\/index\.html)"[^>]*>/i,
+      ];
+      let detailUrl: string | null = null;
+      for (const re of linkPatterns) {
+        const m = listHtml.match(re);
+        if (m) {
+          const rawHref = m[1] as string;
+          let abs = rawHref;
+          if (abs.startsWith("/")) abs = "http://www.pbc.gov.cn" + abs;
+          else if (!abs.startsWith("http")) {
+            const basePath = listUrl.substring(0, listUrl.lastIndexOf("/"));
+            abs = basePath + "/" + abs;
+          }
+          detailUrl = abs;
+          break;
+        }
+      }
+      if (typeof detailUrl === "string") {
+        const ctrl2 = new AbortCtor();
+        const t2 = (globalThis as any).setTimeout(
+          () => ctrl2.abort(),
+          7000,
+        ) as unknown as number;
+        const res2 = await fetchFn(detailUrl, {
+          headers,
+          signal: ctrl2.signal,
+        });
+        (globalThis as any).clearTimeout(t2);
+        if (res2.ok) {
+          const html = await res2.text();
+          const reRate = /中标利率[^0-9]*([0-9]+(?:\.[0-9]+)?)%/i;
+          const m2 = html.match(reRate);
+          if (m2 && Number.isFinite(Number(m2[1]))) {
+            const v = Number(m2[1]);
+            return v;
+          }
+        }
+      }
+      // Direct match on list page
+      for (const re3 of detailPatterns) {
+        const m3 = listHtml.match(re3);
+        if (m3) {
+          const v = Number(m3[1]);
+          if (Number.isFinite(v)) return v;
+        }
+      }
+    } catch {
+      // continue
+    }
+  }
+  // TradingEconomics fallback
+  const cred = "guest:guest";
+  const candidates = [
+    "/indicators/China:Medium-term Lending Facility Rate",
+    "/indicators/medium-term lending facility rate:China",
+    "/indicators/china%20medium-term%20lending%20facility%20rate",
+  ];
+  for (const path of candidates) {
+    const sep = path.includes("?") ? "&" : "?";
+    const url = `https://api.tradingeconomics.com${path}${sep}c=${encodeURIComponent(cred)}&format=json`;
+    try {
+      const AbortCtor = (globalThis as any).AbortController as any;
+      const ctrl = new AbortCtor();
+      const t = (globalThis as any).setTimeout(
+        () => ctrl.abort(),
+        7000,
+      ) as unknown as number;
+      const res = await fetchFn(url, {
+        headers: { Accept: "application/json" },
+        signal: ctrl.signal,
+      });
+      (globalThis as any).clearTimeout(t);
+      if (!res.ok) continue;
+      const json = await res.json();
+      if (!Array.isArray(json)) continue;
+      for (const row of json) {
+        const val = Number(row?.LatestValue ?? row?.Value);
+        if (Number.isFinite(val)) return val;
+      }
+    } catch {
+      // continue
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Standalone resolver for VSTOXX level and delta.
+ */
+export async function fetchVstoxxStandalone(
+  windowDays: number,
+  debug = false,
+): Promise<{ value?: number; delta?: number }> {
+  type AnyFetch = (input: any, init?: any) => Promise<any>;
+  const fetchFn: AnyFetch = (globalThis as any).fetch as AnyFetch;
+  // Yahoo chart first
+  try {
+    const AbortCtor = (globalThis as any).AbortController as any;
+    const ctrl1 = new AbortCtor();
+    const t1 = (globalThis as any).setTimeout(
+      () => ctrl1.abort(),
+      7000,
+    ) as unknown as number;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent("^V2TX")}?range=${encodeURIComponent(
+      `${Math.max(2, Math.min(30, windowDays))}d`,
+    )}&interval=1d`;
+    const res = await fetchFn(url, {
+      headers: { Accept: "application/json" },
+      signal: ctrl1.signal,
+    });
+    (globalThis as any).clearTimeout(t1);
+    if (res.ok) {
+      const json = await res.json();
+      const closes =
+        json?.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? [];
+      const valid = (closes as any[]).filter(
+        (v) => typeof v === "number" && Number.isFinite(v),
+      );
+      if (valid.length >= 1) {
+        const first = valid[0] as number;
+        const last = valid[valid.length - 1] as number;
+        const delta = valid.length >= 2 ? last - first : undefined;
+        if (debug)
+          // eslint-disable-next-line no-console
+          console.log("[VSTOXX:yahoo:^V2TX] value=", last, "delta=", delta);
+        return { value: last, delta };
+      }
+    }
+  } catch {
+    void 0;
+  }
+  // Stooq CSV fallback
+  try {
+    const AbortCtor = (globalThis as any).AbortController as any;
+    const ctrl2 = new AbortCtor();
+    const t2 = (globalThis as any).setTimeout(
+      () => ctrl2.abort(),
+      7000,
+    ) as unknown as number;
+    const url = `https://stooq.com/q/d/l/?s=v2tx&i=d`;
+    const res = await fetchFn(url, {
+      headers: { Accept: "text/csv" },
+      signal: ctrl2.signal,
+    });
+    (globalThis as any).clearTimeout(t2);
+    if (res.ok) {
+      const csv = await res.text();
+      const lines = csv
+        .split(/\r?\n/)
+        .map((l: string) => l.trim())
+        .filter((l: string) => l.length > 0);
+      if (lines.length > 1) {
+        const rows = lines.slice(1).map((l: string) => l.split(","));
+        const closes = rows
+          .map((cols: string[]) => Number(cols[4]))
+          .filter((v: number) => Number.isFinite(v));
+        if (closes.length > 0) {
+          const slice = closes.slice(
+            -Math.max(2, Math.min(windowDays, closes.length)),
+          );
+          const first = slice[0];
+          const last = slice[slice.length - 1];
+          const delta = slice.length >= 2 ? last - first : undefined;
+          if (debug)
+            // eslint-disable-next-line no-console
+            console.log("[VSTOXX:stooq:v2tx] value=", last, "delta=", delta);
+          return { value: last, delta };
+        }
+      }
+    }
+  } catch {
+    void 0;
+  }
+  // Yahoo alt ticker
+  try {
+    const AbortCtor = (globalThis as any).AbortController as any;
+    const ctrl3 = new AbortCtor();
+    const t3 = (globalThis as any).setTimeout(
+      () => ctrl3.abort(),
+      7000,
+    ) as unknown as number;
+    const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent("V2TX.DE")}?range=${encodeURIComponent(
+      `${Math.max(2, Math.min(30, windowDays))}d`,
+    )}&interval=1d`;
+    const res = await fetchFn(url, {
+      headers: { Accept: "application/json" },
+      signal: ctrl3.signal,
+    });
+    (globalThis as any).clearTimeout(t3);
+    if (res.ok) {
+      const json = await res.json();
+      const closes =
+        json?.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? [];
+      const valid = (closes as any[]).filter(
+        (v) => typeof v === "number" && Number.isFinite(v),
+      );
+      if (valid.length >= 1) {
+        const first = valid[0] as number;
+        const last = valid[valid.length - 1] as number;
+        const delta = valid.length >= 2 ? last - first : undefined;
+        if (debug)
+          // eslint-disable-next-line no-console
+          console.log("[VSTOXX:yahoo:V2TX.DE] value=", last, "delta=", delta);
+        return { value: last, delta };
+      }
+    }
+  } catch {
+    void 0;
+  }
+  return {};
+}
 
 export const MacroLiquiditySnapshotTool = defineTool<
   z.infer<typeof inputSchema>,
@@ -76,65 +431,10 @@ export const MacroLiquiditySnapshotTool = defineTool<
       COPPER: "HG=F",
     } as const;
 
-    // =====================================
-    // TradingEconomics credentials & client
-    // =====================================
-    function getTradingEconomicsCred(): string {
-      const key = (process.env.TRADINGECONOMICS_API_KEY || "").trim();
-      if (key.length > 0) return key;
-      return "guest:guest"; // public low-limit guest
-    }
-
-    // ======================================
-    // CN: Shibor 7D (as R007 proxy) via web
-    // ======================================
-    async function fetchCnShibor7DFromWeb(): Promise<number | undefined> {
-      const urls = [
-        "https://www.shibor.org/shibor/",
-        "http://www.shibor.org/shibor/",
-      ];
-      const markers = ["1W", "1周", "一周", "1 Week", "1 week"];
-
-      // Enhanced table matching patterns for various HTML structures
-      const tablePatterns = [
-        // Standard adjacent TD pattern
-        /<td[^>]*>\s*(1W|1周|一周)\s*<\/td>\s*<td[^>]*>\s*([0-9]+(?:\.[0-9]+)?)\s*<\/td>/gi,
-        // Pattern with more flexible spacing/tags between cells
-        /<td[^>]*>\s*(1W|1周|一周)\s*<\/td>[\s\S]*?<td[^>]*>\s*([0-9]+(?:\.[0-9]+)?)\s*<\/td>/gi,
-        // Alternative: look for class/id patterns containing week data
-        /<[^>]*(?:class|id)[^>]*(?:1w|week)[^>]*>\s*([0-9]+(?:\.[0-9]+)?)\s*</gi,
-        // Look for TR containing both 1W and a number
-        /<tr[^>]*>[\s\S]*?(?:1W|1周|一周)[\s\S]*?([0-9]+(?:\.[0-9]+)?)[\s\S]*?<\/tr>/gi,
-      ];
-
-      for (const u of urls) {
-        const html = await fetchHtml(u);
-        if (!html) continue;
-
-        // Try enhanced table patterns first
-        for (const pattern of tablePatterns) {
-          pattern.lastIndex = 0; // Reset regex global state
-          const matches = Array.from(html.matchAll(pattern));
-          for (const match of matches) {
-            const rateStr = match[2] || match[1];
-            if (rateStr) {
-              const v = Number(rateStr);
-              if (Number.isFinite(v) && v > 0 && v < 20) return v; // Sanity check for rate range
-            }
-          }
-        }
-
-        // Fallback: nearby number extraction with sanity check
-        const v2 = extractNearbyNumber(html, markers);
-        if (typeof v2 === "number" && v2 > 0 && v2 < 20) return v2;
-      }
-      return undefined;
-    }
-
     // ======================================
     // CN: MLF rate via PBOC web (best-effort)
     // ======================================
-    async function fetchCnMlfFromPBOCWeb(): Promise<number | undefined> {
+    async function _fetchCnMlfFromPBOCWeb(): Promise<number | undefined> {
       const listUrls = [
         "http://www.pbc.gov.cn/goutongjiaoliu/113456/113469/index.html",
         "http://www.pbc.gov.cn/english/130721/130922/index.html",
@@ -142,7 +442,7 @@ export const MacroLiquiditySnapshotTool = defineTool<
 
       // Try list page → detail page approach first
       for (const listUrl of listUrls) {
-        const listHtml = await fetchHtml(listUrl);
+        const listHtml = await _fetchHtml(listUrl);
         if (!listHtml) continue;
 
         // Find first announcement link (look for href patterns)
@@ -168,7 +468,7 @@ export const MacroLiquiditySnapshotTool = defineTool<
         }
 
         if (detailUrl) {
-          const detailHtml = await fetchHtml(detailUrl);
+          const detailHtml = await _fetchHtml(detailUrl);
           if (detailHtml) {
             const detailPatterns = [
               /MLF[^(]*?rate[^0-9]*?([0-9]+(?:\.[0-9]+)?)%/i,
@@ -208,7 +508,7 @@ export const MacroLiquiditySnapshotTool = defineTool<
     // ======================
     // Generic HTML utilities
     // ======================
-    async function fetchHtml(url: string): Promise<string | undefined> {
+    async function _fetchHtml(url: string): Promise<string | undefined> {
       const controller = new AbortControllerCtor();
       const timeout = setTimeoutFn(
         () => controller.abort(),
@@ -256,7 +556,7 @@ export const MacroLiquiditySnapshotTool = defineTool<
       }
     }
 
-    function extractNearbyNumber(
+    function _extractNearbyNumber(
       html: string,
       markers: string[],
     ): number | undefined {
@@ -276,14 +576,14 @@ export const MacroLiquiditySnapshotTool = defineTool<
       return undefined;
     }
 
-    async function teGetJson(path: string): Promise<any> {
+    async function _teGetJson(path: string): Promise<any> {
       const controller = new AbortControllerCtor();
       const timeout = setTimeoutFn(
         () => controller.abort(),
         8000,
       ) as unknown as number;
       try {
-        const cred = getTradingEconomicsCred();
+        const cred = "guest:guest"; // getTradingEconomicsCred(); // Removed as per edit hint
         const sep = path.includes("?") ? "&" : "?";
         const url = `https://api.tradingeconomics.com${path}${sep}c=${encodeURIComponent(
           cred,
@@ -443,51 +743,7 @@ export const MacroLiquiditySnapshotTool = defineTool<
     // ===================================
     // CN proxies via TradingEconomics API
     // ===================================
-    async function fetchCnMlfFromTE(): Promise<number | undefined> {
-      // Try multiple indicator paths and pick the latest value
-      const candidates = [
-        "/indicators/China:Medium-term Lending Facility Rate",
-        "/indicators/medium-term lending facility rate:China",
-        "/indicators/china%20medium-term%20lending%20facility%20rate",
-      ];
-      for (const path of candidates) {
-        const json = await teGetJson(path);
-        if (!Array.isArray(json)) continue;
-        // Pick the first numeric LatestValue/Value
-        for (const row of json) {
-          const val = Number(row?.LatestValue ?? row?.Value);
-          if (Number.isFinite(val)) return val;
-        }
-      }
-      return undefined;
-    }
-
-    async function fetchCnShibor7DFromTE(): Promise<number | undefined> {
-      const candidates = [
-        "/shibor/7d",
-        "/China/shibor 7 day",
-        "/China/Interbank%20Rate",
-      ];
-      for (const path of candidates) {
-        const json = await teGetJson(path);
-        if (!json) continue;
-        const arr = Array.isArray(json) ? json : [json];
-        let best: number | undefined;
-        for (const row of arr) {
-          const desc = String(
-            row?.Category || row?.Indicator || row?.shortname || "",
-          ).toLowerCase();
-          if (!desc.includes("shibor") && !desc.includes("interbank")) continue;
-          const v = Number(row?.LatestValue ?? row?.Last ?? row?.Value);
-          if (Number.isFinite(v)) {
-            best = v;
-            break;
-          }
-        }
-        if (typeof best === "number") return best;
-      }
-      return undefined;
-    }
+    // (removed unused TE proxy resolver functions)
 
     // Fetch latest quotes
     const quoteMap = await fetchQuote([
@@ -610,29 +866,15 @@ export const MacroLiquiditySnapshotTool = defineTool<
     else if (typeof cVSTOXX_S.delta === "number")
       deltas.VSTOXX = cVSTOXX_S.delta;
 
-    // CN rates via Web first, then TE
-    const [cnShiborWeb, cnMlfWeb] = await Promise.all([
-      fetchCnShibor7DFromWeb(),
-      fetchCnMlfFromPBOCWeb(),
+    // CN rates via standalone resolvers (web → TE)
+    const [cnR007Val, cnMlfVal] = await Promise.all([
+      fetchCnR007Standalone(),
+      fetchCnMlfStandalone(),
     ]);
-    if (rates.CN_R007 == null && typeof cnShiborWeb === "number")
-      rates.CN_R007 = cnShiborWeb;
-    if (rates.CN_MLF == null && typeof cnMlfWeb === "number")
-      rates.CN_MLF = cnMlfWeb;
-    if (rates.CN_R007 == null || rates.CN_MLF == null) {
-      const [cnMlfTE, cnShiborTE] = await Promise.all([
-        rates.CN_MLF == null ? fetchCnMlfFromTE() : Promise.resolve(undefined),
-        rates.CN_R007 == null
-          ? fetchCnShibor7DFromTE()
-          : Promise.resolve(undefined),
-      ]);
-      if (rates.CN_MLF == null && typeof cnMlfTE === "number") {
-        rates.CN_MLF = cnMlfTE;
-      }
-      if (rates.CN_R007 == null && typeof cnShiborTE === "number") {
-        rates.CN_R007 = cnShiborTE;
-      }
-    }
+    if (rates.CN_R007 == null && typeof cnR007Val === "number")
+      rates.CN_R007 = cnR007Val;
+    if (rates.CN_MLF == null && typeof cnMlfVal === "number")
+      rates.CN_MLF = cnMlfVal;
 
     // Simple regime heuristic
     const vixVal = vol.VIX;
@@ -694,7 +936,6 @@ export const MacroLiquiditySnapshotTool = defineTool<
       );
     }
 
-    const snapshot = { rates, fx, vol, commodities, deltas };
     const sources = [
       "YahooFinance:quote",
       "YahooFinance:chart",
@@ -713,24 +954,23 @@ export const MacroLiquiditySnapshotTool = defineTool<
         vol: [],
         commodities: [],
       };
-      if (snapshot.rates.UST2Y == null) missing.rates.push("UST2Y");
-      if (snapshot.rates.UST10Y == null) missing.rates.push("UST10Y");
-      if (snapshot.rates.CN_R007 == null) missing.rates.push("CN_R007");
-      if (snapshot.rates.CN_MLF == null) missing.rates.push("CN_MLF");
-      if (snapshot.fx.DXY == null) missing.fx.push("DXY");
-      if (snapshot.vol.VIX == null) missing.vol.push("VIX");
-      if (snapshot.vol.VSTOXX == null) missing.vol.push("VSTOXX");
-      if (snapshot.commodities.WTI == null) missing.commodities.push("WTI");
-      if (snapshot.commodities.GOLD == null) missing.commodities.push("GOLD");
-      if (snapshot.commodities.COPPER == null)
-        missing.commodities.push("COPPER");
+      if (rates.UST2Y == null) missing.rates.push("UST2Y");
+      if (rates.UST10Y == null) missing.rates.push("UST10Y");
+      if (rates.CN_R007 == null) missing.rates.push("CN_R007");
+      if (rates.CN_MLF == null) missing.rates.push("CN_MLF");
+      if (fx.DXY == null) missing.fx.push("DXY");
+      if (vol.VIX == null) missing.vol.push("VIX");
+      if (vol.VSTOXX == null) missing.vol.push("VSTOXX");
+      if (commodities.WTI == null) missing.commodities.push("WTI");
+      if (commodities.GOLD == null) missing.commodities.push("GOLD");
+      if (commodities.COPPER == null) missing.commodities.push("COPPER");
       // eslint-disable-next-line no-console
       console.log(
-        "[MACRO_DEBUG] asOf=%s windowDays=%d missing=%o snapshot=%o sources=%o",
+        "[MACRO_DEBUG] asOf=%s windowDays=%d missing=%o ratesFxVolCommodities=%o sources=%o",
         asOf,
         windowDays,
         missing,
-        snapshot,
+        { rates, fx, vol, commodities },
         sources,
       );
     }
@@ -738,10 +978,16 @@ export const MacroLiquiditySnapshotTool = defineTool<
     return {
       ok: true,
       data: {
-        snapshot,
+        asOf,
+        windowDays,
         regime,
+        rates,
+        fx,
+        vol,
+        commodities,
+        deltas,
         bullets,
-        meta: { windowDays, asOf, sources },
+        sources,
       },
     };
   },
