@@ -306,6 +306,7 @@ export async function fetchVstoxxStandalone(
         const last = valid[valid.length - 1] as number;
         const delta = valid.length >= 2 ? last - first : undefined;
         if (debug)
+          // eslint-disable-next-line no-console
           console.log("[VSTOXX:yahoo:^V2TX] value=", last, "delta=", delta);
         return { value: last, delta };
       }
@@ -346,6 +347,7 @@ export async function fetchVstoxxStandalone(
           const last = slice[slice.length - 1];
           const delta = slice.length >= 2 ? last - first : undefined;
           if (debug)
+            // eslint-disable-next-line no-console
             console.log("[VSTOXX:stooq:v2tx] value=", last, "delta=", delta);
           return { value: last, delta };
         }
@@ -382,6 +384,7 @@ export async function fetchVstoxxStandalone(
         const last = valid[valid.length - 1] as number;
         const delta = valid.length >= 2 ? last - first : undefined;
         if (debug)
+          // eslint-disable-next-line no-console
           console.log("[VSTOXX:yahoo:V2TX.DE] value=", last, "delta=", delta);
         return { value: last, delta };
       }
