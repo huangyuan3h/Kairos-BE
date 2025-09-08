@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /* eslint-disable no-console */
-
+// bun run src/ai-tools/scripts/run_macro.ts
 import { MacroLiquiditySnapshotTool } from "..";
 import type { Result } from "../base";
 import type { MacroSnapshotOutput } from "../macro";
@@ -28,33 +28,43 @@ async function main() {
     process.exit(1);
   }
 
-  const { snapshot, regime, bullets, meta } = res.data;
+  const {
+    asOf,
+    windowDays,
+    rates,
+    fx,
+    vol,
+    commodities,
+    deltas,
+    regime,
+    bullets,
+  } = res.data;
   console.log("=== MacroLiquiditySnapshotTool Result ===");
-  console.log(`AsOf: ${meta.asOf} | WindowDays: ${meta.windowDays}`);
+  console.log(`AsOf: ${asOf} | WindowDays: ${windowDays}`);
   console.log(`Regime: ${regime}`);
   console.log("");
 
   console.log("[Rates]");
-  console.log(`  UST2Y: ${formatNumber(snapshot.rates.UST2Y)}%`);
-  console.log(`  UST10Y: ${formatNumber(snapshot.rates.UST10Y)}%`);
-  console.log(`  CN_R007: ${formatNumber(snapshot.rates.CN_R007)}%`);
-  console.log(`  CN_MLF: ${formatNumber(snapshot.rates.CN_MLF)}%`);
+  console.log(`  UST2Y: ${formatNumber(rates.UST2Y)}%`);
+  console.log(`  UST10Y: ${formatNumber(rates.UST10Y)}%`);
+  console.log(`  CN_R007: ${formatNumber(rates.CN_R007)}%`);
+  console.log(`  CN_MLF: ${formatNumber(rates.CN_MLF)}%`);
 
   console.log("[FX]");
-  console.log(`  DXY: ${formatNumber(snapshot.fx.DXY)}`);
+  console.log(`  DXY: ${formatNumber(fx.DXY)}`);
 
   console.log("[Vol]");
-  console.log(`  VIX: ${formatNumber(snapshot.vol.VIX)}`);
-  console.log(`  VSTOXX: ${formatNumber(snapshot.vol.VSTOXX)}`);
+  console.log(`  VIX: ${formatNumber(vol.VIX)}`);
+  console.log(`  VSTOXX: ${formatNumber(vol.VSTOXX)}`);
 
   console.log("[Commodities]");
-  console.log(`  WTI: ${formatNumber(snapshot.commodities.WTI)}`);
-  console.log(`  GOLD: ${formatNumber(snapshot.commodities.GOLD)}`);
-  console.log(`  COPPER: ${formatNumber(snapshot.commodities.COPPER)}`);
+  console.log(`  WTI: ${formatNumber(commodities.WTI)}`);
+  console.log(`  GOLD: ${formatNumber(commodities.GOLD)}`);
+  console.log(`  COPPER: ${formatNumber(commodities.COPPER)}`);
 
   console.log("");
   console.log("[Deltas]");
-  const entries = Object.entries(snapshot.deltas ?? {});
+  const entries = Object.entries(deltas ?? {});
   if (entries.length === 0) console.log("  (none)");
   for (const [k, v] of entries) {
     console.log(`  ${k}: ${v}`);
