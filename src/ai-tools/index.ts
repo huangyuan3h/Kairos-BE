@@ -14,10 +14,12 @@ import { MacroLiquiditySnapshotTool } from "./macro";
  * Get tools set for Overall Report generation (NIA/MLS/SRV)
  */
 export function getOverallReportTools() {
-  return [
-    BloombergNewsTool,
-    GoogleNewsTool,
-    MacroLiquiditySnapshotTool,
-    // SectorRotationValuationTool,
-  ];
+  // Return a named tool set so the model can call tools by name deterministically
+  // Names must match the keys used in prompts/toolChoice.
+  return {
+    bloomberg_news: BloombergNewsTool,
+    google_news: GoogleNewsTool,
+    macro_liquidity_snapshot: MacroLiquiditySnapshotTool,
+    // sector_rotation: SectorRotationValuationTool,
+  } as const;
 }
