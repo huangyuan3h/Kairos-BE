@@ -8,7 +8,10 @@ import { generateObject, generateText, streamObject, streamText } from "ai";
 import { z } from "zod";
 
 import crypto from "crypto";
-import { instrumentationConfig } from "./telemetry/instrumentation";
+import {
+  endActiveSpan,
+  instrumentationConfig,
+} from "./telemetry/instrumentation";
 
 // Default schema for object generation when no specific schema is provided
 const defaultObjectSchema = z.any();
@@ -115,17 +118,38 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
         ...instrumentationConfig,
       };
 
+      let result: any;
       switch (outputFormat) {
         case "stream-text":
-          return await streamText({ ...commonConfig });
+          result = await streamText({ ...commonConfig });
+          break;
         case "stream-object":
-          return await streamObject({ ...commonConfig } as any);
+          result = await streamObject({ ...commonConfig } as any);
+          break;
         case "object":
-          return await generateObject({ ...commonConfig } as any);
+          result = await generateObject({ ...commonConfig } as any);
+          break;
         case "text":
         default:
-          return await generateText({ ...commonConfig });
+          result = await generateText({ ...commonConfig });
+          break;
       }
+
+      // For non-streaming calls, record output and end the active span here.
+      if (outputFormat === "text" || outputFormat === "object") {
+        try {
+          const outputText =
+            (result as any)?.text ??
+            (result as any)?.content ??
+            JSON.stringify((result as any)?.object ?? result);
+          updateActiveObservation({ output: outputText });
+          updateActiveTrace({ output: outputText });
+        } finally {
+          endActiveSpan();
+        }
+      }
+
+      return result;
     });
   };
 
