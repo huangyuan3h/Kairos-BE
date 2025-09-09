@@ -13,6 +13,8 @@
         "@langfuse/client": "^4.0.0",
         "@langfuse/otel": "^4.0.0",
         "@langfuse/tracing": "^4.0.0",
+        "@opentelemetry/core": "^2.1.0",
+        "@opentelemetry/exporter-trace-otlp-http": "^0.204.0",
         "@opentelemetry/sdk-node": "^0.204.0",
         "ai": "^5.0.15",
         "aws-cdk-lib": "^2.208.0",
@@ -22,6 +24,8 @@
         "zod": "^3.25.76",
       },
       "devDependencies": {
+        "@opentelemetry/api": "^1.9.0",
+        "@opentelemetry/sdk-trace-node": "^2.1.0",
         "@tsconfig/node22": "^22.0.0",
         "@types/jest": "^29.5.12",
         "@types/node": "^22.14.1",
