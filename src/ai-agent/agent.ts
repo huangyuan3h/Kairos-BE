@@ -63,25 +63,111 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
   // Create Google AI model instance
   const googleModel = google(model);
 
-  // Helper function to create tool definitions for AI SDK
-  // const createToolDefinitions = (): Record<string, any> | undefined => {
-  //   if (tools.length === 0) return undefined;
+  // Helper function to create tool definitions for AI SDK with enhanced tracing
+  const createToolDefinitions = (): Record<string, any> | undefined => {
+    if (!tools || Object.keys(tools).length === 0) return undefined;
 
-  //   // Convert tools array to ToolSet format (Record<string, Tool>)
-  //   const toolSet: Record<string, any> = {};
-  //   tools.forEach((tool) => {
-  //     toolSet[tool.name] = {
-  //       name: tool.name,
-  //       description: tool.description,
-  //       inputSchema: tool.schema,
-  //       execute: async (input: any) => {
-  //         return await tool.execute(input);
-  //       },
-  //     };
-  //   });
+    const toolSet: Record<string, any> = {};
 
-  //   return toolSet;
-  // };
+    for (const [toolName, tool] of Object.entries(tools)) {
+      toolSet[toolName] = {
+        ...tool,
+        execute: async (input: any) => {
+          const toolId = crypto.randomUUID();
+          const toolStartTime = Date.now();
+
+          // Start tool execution span
+          const toolSpan = await startActiveObservation(
+            `tool_execution_${toolName}`,
+            async () => {
+              updateActiveObservation({
+                input,
+                metadata: {
+                  toolName,
+                  toolId,
+                  startTime: toolStartTime,
+                },
+              });
+
+              try {
+                // Execute the original tool
+                const result = await tool.execute(input);
+                const executionTime = Date.now() - toolStartTime;
+
+                // Log tool execution details
+                updateActiveObservation({
+                  output: result,
+                  metadata: {
+                    toolName,
+                    toolId,
+                    executionTime,
+                    success: true,
+                  },
+                });
+
+                // Update trace with tool execution info
+                updateActiveTrace({
+                  metadata: {
+                    toolExecutions: {
+                      [toolName]: {
+                        toolId,
+                        input,
+                        output: result,
+                        executionTime,
+                        success: true,
+                      },
+                    },
+                  },
+                });
+
+                return result;
+              } catch (error) {
+                const executionTime = Date.now() - toolStartTime;
+                const errorMessage =
+                  error instanceof Error ? error.message : String(error);
+
+                // Log tool execution error
+                updateActiveObservation({
+                  output: `error: ${errorMessage}`,
+                  metadata: {
+                    toolName,
+                    toolId,
+                    executionTime,
+                    success: false,
+                    error: errorMessage,
+                  },
+                });
+
+                // Update trace with tool execution error
+                updateActiveTrace({
+                  metadata: {
+                    toolExecutions: {
+                      [toolName]: {
+                        toolId,
+                        input,
+                        output: `error: ${errorMessage}`,
+                        executionTime,
+                        success: false,
+                        error: errorMessage,
+                      },
+                    },
+                  },
+                });
+
+                throw error;
+              } finally {
+                endActiveSpan();
+              }
+            },
+          );
+
+          return toolSpan;
+        },
+      };
+    }
+
+    return toolSet;
+  };
 
   // Chat method with different output formats - return the actual result
   const chat = async (
@@ -100,13 +186,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
         input: inputText,
       });
 
-      const toolsConfig =
-        tools &&
-        (Array.isArray(tools)
-          ? (tools as any)
-          : Object.keys(tools as any).length > 0
-            ? (tools as Record<string, any>)
-            : undefined);
+      const toolsConfig = createToolDefinitions();
 
       const commonConfig = {
         model: googleModel,
