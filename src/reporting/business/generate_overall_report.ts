@@ -38,10 +38,10 @@ export async function generateOverallReport(): Promise<OverallReport> {
 
   // Require Langfuse-managed prompt; do not fallback locally
   const langfuse = new LangfuseClient();
-  const p = await langfuse.prompt.get("report/overall_system_v2");
+  const p = await langfuse.prompt.get("report/overall_system");
   if (!p) {
     throw new Error(
-      "Missing Langfuse prompt: 'report/overall_system_v2'. Please create it before generating reports.",
+      "Missing Langfuse prompt: 'report/overall_system'. Please create it before generating reports.",
     );
   }
   const systemPrompt: string = p.compile({ asOfDate });
