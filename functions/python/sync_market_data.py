@@ -19,6 +19,7 @@ import pandas as pd  # type: ignore[import]
 
 from core.data_collector.stock.cn_stock_catalog import get_cn_a_stock_catalog
 from core.data_collector.stock.us_stock_catalog import get_us_stock_catalog
+from core.data_collector.index.catalog import get_main_index_catalog
 from core.database import MarketData
 
 logger = logging.getLogger()
@@ -43,8 +44,13 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         us_count = int(service.upsert_stock_catalog(us_df)) if not us_df.empty else 0
         logger.info("Upserted US catalog items: %d", us_count)
 
-        total = cn_count + us_count
-        return {"statusCode": 200, "body": json.dumps({"cn": cn_count, "us": us_count, "total": total})}
+        # P0: Main indexes and key ETFs
+        idx_df = ensure_df(get_main_index_catalog())
+        idx_count = int(service.upsert_stock_catalog(idx_df)) if not idx_df.empty else 0
+        logger.info("Upserted main index/ETF items: %d", idx_count)
+
+        total = cn_count + us_count + idx_count
+        return {"statusCode": 200, "body": json.dumps({"cn": cn_count, "us": us_count, "index": idx_count, "total": total})}
     except Exception as exc:
         logger.exception("Sync failed: %s", exc)
         return {"statusCode": 500, "body": json.dumps({"error": str(exc)})}

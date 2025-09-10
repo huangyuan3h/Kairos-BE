@@ -12,7 +12,7 @@ import logging
 from pathlib import Path
 from typing import Iterable, Mapping, List, Dict, Any
 
-import pandas as pd
+import pandas as pd  # type: ignore[import]
 
 logger = logging.getLogger(__name__)
 
@@ -98,5 +98,31 @@ def get_index_catalog() -> pd.DataFrame:
     return _rows_to_dataframe(rows)
 
 
-__all__ = ["get_index_catalog"]
+def get_main_index_catalog() -> pd.DataFrame:
+    """Return P0 main indexes and ETFs for daily regime analysis.
+
+    The list includes CN major indexes, US broad indexes, and key ETFs.
+    Schema is unified with the main table catalog format.
+    """
+    rows: List[Dict[str, Any]] = [
+        # US broad indexes
+        {"symbol": "US:SPX", "name": "S&P 500 Index", "exchange": "US", "asset_type": "index", "market": "INDEX", "status": "active"},
+        {"symbol": "US:NDX", "name": "Nasdaq-100 Index", "exchange": "US", "asset_type": "index", "market": "INDEX", "status": "active"},
+        {"symbol": "US:RUT", "name": "Russell 2000 Index", "exchange": "US", "asset_type": "index", "market": "INDEX", "status": "active"},
+
+        # CN major indexes
+        {"symbol": "CN:CSI300", "name": "CSI 300 Index", "exchange": "CN", "asset_type": "index", "market": "INDEX", "status": "active"},
+        {"symbol": "CN:SHCOMP", "name": "Shanghai Composite Index", "exchange": "CN", "asset_type": "index", "market": "INDEX", "status": "active"},
+        {"symbol": "CN:CSI500", "name": "CSI 500 Index", "exchange": "CN", "asset_type": "index", "market": "INDEX", "status": "active"},
+
+        # Key ETFs (US)
+        {"symbol": "US:SPY", "name": "SPDR S&P 500 ETF", "exchange": "US", "asset_type": "etf", "market": "US", "status": "active"},
+        {"symbol": "US:QQQ", "name": "Invesco QQQ Trust", "exchange": "US", "asset_type": "etf", "market": "US", "status": "active"},
+        {"symbol": "US:IWM", "name": "iShares Russell 2000 ETF", "exchange": "US", "asset_type": "etf", "market": "US", "status": "active"},
+    ]
+
+    return _rows_to_dataframe(rows)
+
+
+__all__ = ["get_index_catalog", "get_main_index_catalog"]
 
