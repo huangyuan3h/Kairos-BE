@@ -1,4 +1,5 @@
 // Load envs from .env
+// bun run src/reporting/script/debug_overall_report.ts
 import "dotenv/config";
 import { generateOverallReport } from "../business/generate_overall_report";
 

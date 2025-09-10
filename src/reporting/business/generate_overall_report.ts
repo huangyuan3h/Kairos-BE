@@ -54,31 +54,116 @@ export async function generateOverallReport(): Promise<OverallReport> {
     tableName: getDynamoTableName(DynamoTable.Reports),
   });
 
-  // Get tools and add debugging
-  const tools = getOverallReportTools();
-  logger.debug({ tools: Object.keys(tools) }, "Available tools");
+  // Get tools and add debugging (local execution; do not pass to the model)
+  const toolset = getOverallReportTools();
+  logger.debug({ tools: Object.keys(toolset) }, "Available tools");
   logger.debug({ systemPrompt }, "System prompt");
 
-  // Initialize AI agent with Gemini 2.5 Flash and custom schema
+  // Execute tools locally and build compact context JSON
+  const newsWindowHours = Number(process.env.NEWS_WINDOW_HOURS || 24);
+  const newsLimit = Number(process.env.NEWS_LIMIT || 20);
+  const macroWindowDays = Number(process.env.MACRO_WINDOW_DAYS || 7);
+
+  type AnyResult = { ok: boolean; data?: any; error?: string } | undefined;
+  let bRes: AnyResult;
+  let gRes: AnyResult;
+  let mRes: AnyResult;
+  const errors: string[] = [];
+
+  try {
+    bRes = await (toolset as any).bloomberg_news.execute({
+      windowHours: Math.max(1, Math.min(72, newsWindowHours)),
+      limit: Math.max(1, Math.min(50, newsLimit)),
+    });
+  } catch (e: any) {
+    const msg = e instanceof Error ? e.message : String(e);
+    errors.push(`bloomberg_news: ${msg}`);
+    bRes = { ok: false, error: msg } as AnyResult;
+  }
+
+  try {
+    gRes = await (toolset as any).google_news.execute({
+      windowHours: Math.max(1, Math.min(72, newsWindowHours)),
+      limit: Math.max(1, Math.min(50, newsLimit)),
+    });
+  } catch (e: any) {
+    const msg = e instanceof Error ? e.message : String(e);
+    errors.push(`google_news: ${msg}`);
+    gRes = { ok: false, error: msg } as AnyResult;
+  }
+
+  try {
+    mRes = await (toolset as any).macro_liquidity_snapshot.execute({
+      windowDays: Math.max(1, Math.min(30, macroWindowDays)),
+    });
+  } catch (e: any) {
+    const msg = e instanceof Error ? e.message : String(e);
+    errors.push(`macro_liquidity_snapshot: ${msg}`);
+    mRes = { ok: false, error: msg } as AnyResult;
+  }
+
+  const bloomItems = Array.isArray(bRes?.data?.items)
+    ? (bRes?.data?.items as Array<any>).slice(0, newsLimit).map(i => ({
+        title: String(i?.title || ""),
+        url: i?.url ? String(i.url) : undefined,
+        publishedAt: i?.publishedAt ? String(i.publishedAt) : undefined,
+        source: i?.source ? String(i.source) : undefined,
+        section: i?.section ? String(i.section) : undefined,
+      }))
+    : [];
+
+  const googleItems = Array.isArray(gRes?.data?.items)
+    ? (gRes?.data?.items as Array<any>).slice(0, newsLimit).map(i => ({
+        title: String(i?.title || ""),
+        url: i?.url ? String(i.url) : undefined,
+        publishedAt: i?.publishedAt ? String(i.publishedAt) : undefined,
+        source: i?.source ? String(i.source) : undefined,
+        section: i?.section ? String(i.section) : undefined,
+      }))
+    : [];
+
+  const macro = mRes?.data ?? undefined;
+
+  const context = {
+    asOfDate,
+    news: {
+      bloomberg: bloomItems,
+      google: googleItems,
+    },
+    macro,
+    errors,
+  } as const;
+
+  logger.debug(
+    {
+      bloomCount: bloomItems.length,
+      googleCount: googleItems.length,
+      hasMacro: Boolean(macro),
+      errors,
+    },
+    "Local tools context prepared"
+  );
+
+  // Initialize AI agent WITHOUT tools; pass compact context via prompt; force no-tool path
   const aiAgent = createObjectAgentWithSchema({
-    model: "gemini-2.5-flash", // Use gemini-2.5-flash as requested
-    tools, // Provide NEWS + MACRO tools as a named set
+    model: "gemini-2.5-flash",
     systemPrompt,
-    // Use 'auto' instead of 'required' for better compatibility
-    toolChoice: "auto",
-    schema: reportSchema, // Use custom schema for report generation
+    toolChoice: "none",
+    schema: reportSchema,
   });
 
-  logger.info("Starting report generation with tools");
+  logger.info("Starting report generation with local tools context");
 
-  // Generate structured report object using AI agent
-  const response = await aiAgent.generate("");
+  // Compose user prompt embedding context JSON
+  const userPrompt = `你将获得当日结构化上下文（JSON）。仅基于该上下文，用中文生成一个简洁专业的每日市场简报。严格输出 {title, content} 两个字段，其中 content 允许使用 Markdown。
+
+上下文(JSON)：\n\n\u0060\u0060\u0060json\n${JSON.stringify(context)}\n\u0060\u0060\u0060`;
+
+  const response = await aiAgent.generate(userPrompt);
 
   logger.debug({ response }, "AI Agent response");
 
   // Extract structured data from response
-  // Note: ai.generateObject returns an object with the parsed payload on `object`
-  // We defensively support both shapes to avoid silent undefined writes
   const parsed: any = (response as any)?.object ?? response;
   const reportData = {
     title: parsed?.title,
