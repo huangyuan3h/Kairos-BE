@@ -52,7 +52,7 @@ describe("getReportSummaries", () => {
 
   it("throws on unsupported type", async () => {
     await expect(
-      getReportSummaries({ type: "unknown", currentPage: 1, pageSize: 10 }),
+      getReportSummaries({ type: "unknown", currentPage: 1, pageSize: 10 })
     ).rejects.toThrow("Unsupported report type");
   });
 });

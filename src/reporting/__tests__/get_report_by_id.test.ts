@@ -30,13 +30,13 @@ describe("getReportById", () => {
 
   it("throws on unsupported type", async () => {
     await expect(
-      getReportById({ type: "unknown", reportId: "FOUND" }),
+      getReportById({ type: "unknown", reportId: "FOUND" })
     ).rejects.toThrow("Unsupported report type");
   });
 
   it("throws when report not found", async () => {
     await expect(
-      getReportById({ type: "overall", reportId: "MISSING" }),
+      getReportById({ type: "overall", reportId: "MISSING" })
     ).rejects.toThrow("Report not found");
   });
 });

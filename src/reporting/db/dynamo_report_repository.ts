@@ -54,7 +54,7 @@ export function createDynamoReportRepository(params: {
         const errorMessage =
           error instanceof Error ? error.message : "Unknown error";
         throw new Error(
-          `Failed to retrieve report by id from database: ${errorMessage}`,
+          `Failed to retrieve report by id from database: ${errorMessage}`
         );
       }
     },
@@ -73,7 +73,7 @@ export function createDynamoReportRepository(params: {
             content: report.content,
             createdAt: report.createdAt,
           },
-        }),
+        })
       );
     },
 
@@ -122,7 +122,7 @@ export function createDynamoReportRepository(params: {
             title: item.title,
             content: item.content,
             createdAt: item.createdAt,
-          }),
+          })
         );
 
         // For simplicity, we'll use the count of returned items as total count
@@ -143,7 +143,7 @@ export function createDynamoReportRepository(params: {
         const errorMessage =
           error instanceof Error ? error.message : "Unknown error";
         throw new Error(
-          `Failed to retrieve reports from database: ${errorMessage}`,
+          `Failed to retrieve reports from database: ${errorMessage}`
         );
       }
     },
@@ -188,7 +188,7 @@ export function createDynamoReportRepository(params: {
             asOfDate: item.asOfDate,
             title: item.title,
             createdAt: item.createdAt,
-          }),
+          })
         );
 
         const totalCount = reports.length;
@@ -205,7 +205,7 @@ export function createDynamoReportRepository(params: {
         const errorMessage =
           error instanceof Error ? error.message : "Unknown error";
         throw new Error(
-          `Failed to retrieve report summaries from database: ${errorMessage}`,
+          `Failed to retrieve report summaries from database: ${errorMessage}`
         );
       }
     },

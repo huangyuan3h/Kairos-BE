@@ -62,20 +62,20 @@ describe("env utils", () => {
     delete process.env.SST_STAGE;
     process.env.NODE_ENV = "development";
     expect(getDynamoTableName(DynamoTable.MarketData)).toBe(
-      "kairos-be-dev-MarketDataTable",
+      "kairos-be-dev-MarketDataTable"
     );
     expect(getDynamoTableName(DynamoTable.Reports)).toBe(
-      "kairos-be-dev-ReportsTable",
+      "kairos-be-dev-ReportsTable"
     );
   });
 
   test("dynamo table name composition with stage override", () => {
     process.env.SST_STAGE = "prod";
     expect(getDynamoTableName(DynamoTable.MarketData)).toBe(
-      "kairos-be-prod-MarketDataTable",
+      "kairos-be-prod-MarketDataTable"
     );
     expect(getDynamoTableName(DynamoTable.Reports)).toBe(
-      "kairos-be-prod-ReportsTable",
+      "kairos-be-prod-ReportsTable"
     );
   });
 });

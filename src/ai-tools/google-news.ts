@@ -62,8 +62,8 @@ function getGoogleNewsFeeds(): string[] {
   if (env && typeof env === "string") {
     return env
       .split(",")
-      .map((s) => s.trim())
-      .filter((s) => /^https?:\/\//i.test(s));
+      .map(s => s.trim())
+      .filter(s => /^https?:\/\//i.test(s));
   }
   // Default to English US top, business, and technology sections
   const base = "hl=en-US&gl=US&ceid=US:en";
@@ -80,8 +80,8 @@ function getIncludeKeywords(): string[] {
   if (env && typeof env === "string") {
     return env
       .split(",")
-      .map((s) => s.trim().toLowerCase())
-      .filter((s) => s.length > 0);
+      .map(s => s.trim().toLowerCase())
+      .filter(s => s.length > 0);
   }
   return [
     // Macro & policy
@@ -166,8 +166,8 @@ function getExcludeKeywords(): string[] {
   if (env && typeof env === "string") {
     return env
       .split(",")
-      .map((s) => s.trim().toLowerCase())
-      .filter((s) => s.length > 0);
+      .map(s => s.trim().toLowerCase())
+      .filter(s => s.length > 0);
   }
   return [
     "lottery",
@@ -193,9 +193,9 @@ function shouldKeepByTopic(title: string): boolean {
   const t = title.toLowerCase();
   const include = getIncludeKeywords();
   const exclude = getExcludeKeywords();
-  const hitsInclude = include.some((k) => t.includes(k));
+  const hitsInclude = include.some(k => t.includes(k));
   if (!hitsInclude) return false;
-  if (exclude.some((k) => t.includes(k))) return false;
+  if (exclude.some(k => t.includes(k))) return false;
   return true;
 }
 
@@ -213,7 +213,7 @@ function decodeHtmlEntities(input: string): string {
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/g, "'")
     .replace(/&#x([0-9a-fA-F]+);/g, (_, h) =>
-      String.fromCharCode(parseInt(h, 16)),
+      String.fromCharCode(parseInt(h, 16))
     )
     .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(parseInt(d, 10)));
 }
@@ -277,7 +277,7 @@ function parseAtomOrRss(xml: string): GoogleNewsItem[] {
 
 async function fetchFeed(
   url: string,
-  timeoutMs = 8000,
+  timeoutMs = 8000
 ): Promise<GoogleNewsItem[]> {
   const controller = new AbortControllerCtor();
   const timeout = setTimeoutFn(() => controller.abort(), timeoutMs);
@@ -296,9 +296,9 @@ async function fetchFeed(
     const host = url.replace(/^https?:\/\//i, "").split("/")[0] || "RSS";
     const path = url.replace(/^https?:\/\/(?:[^/]+)(\/.*)$/i, "$1");
     const section = (
-      path.split("/").find((seg) => seg.length > 0) ?? ""
+      path.split("/").find(seg => seg.length > 0) ?? ""
     ).toLowerCase();
-    return parseAtomOrRss(xml).map((i) => ({
+    return parseAtomOrRss(xml).map(i => ({
       ...i,
       source: host,
       section: section || undefined,
@@ -322,16 +322,16 @@ export const GoogleNewsTool = defineTool<
     const { windowHours, limit } = input;
     const feeds = getGoogleNewsFeeds();
 
-    const results = await Promise.all(feeds.map((f) => fetchFeed(f)));
+    const results = await Promise.all(feeds.map(f => fetchFeed(f)));
     const all = results.flat();
 
     // Finance-only filter by title keywords
-    const financeOnly = all.filter((i) => shouldKeepByTopic(i.title));
+    const financeOnly = all.filter(i => shouldKeepByTopic(i.title));
 
     const cutoff =
       Date.now() - Math.min(Math.max(1, windowHours), 72) * 3600 * 1000;
     const withinWindow = financeOnly.filter(
-      (i) => new Date(i.publishedAt).getTime() >= cutoff,
+      i => new Date(i.publishedAt).getTime() >= cutoff
     );
 
     // Deduplicate by URL or title
@@ -354,7 +354,7 @@ export const GoogleNewsTool = defineTool<
     // Sort by publishedAt desc
     const sorted = deduped.sort(
       (a, b) =>
-        new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
+        new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
     );
 
     const items = sorted.slice(0, Math.min(Math.max(1, limit), 50));

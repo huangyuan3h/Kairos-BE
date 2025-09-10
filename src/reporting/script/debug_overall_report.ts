@@ -1,4 +1,5 @@
 // Load envs from .env
+// bun run src/reporting/script/debug_overall_report.ts
 import "dotenv/config";
 import { generateOverallReport } from "../business/generate_overall_report";
 
@@ -9,7 +10,7 @@ async function main() {
   console.log(JSON.stringify(report, null, 2));
 }
 
-main().catch((err) => {
+main().catch(err => {
   // eslint-disable-next-line no-console
   console.error(err);
   process.exit(1);

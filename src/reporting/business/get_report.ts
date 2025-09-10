@@ -34,14 +34,14 @@ export interface GetReportsResult {
  * @returns Paginated list of reports
  */
 export async function getReports(
-  params: GetReportsParams,
+  params: GetReportsParams
 ): Promise<GetReportsResult> {
   const { type, currentPage, pageSize } = params;
 
   // Validate report type
   if (type !== "overall") {
     throw new Error(
-      `Unsupported report type: ${type}. Currently only "overall" type is supported.`,
+      `Unsupported report type: ${type}. Currently only "overall" type is supported.`
     );
   }
 
@@ -78,13 +78,13 @@ export interface GetReportSummariesResult {
  * Designed to be shared by REST and future GraphQL resolvers.
  */
 export async function getReportSummaries(
-  params: GetReportsParams,
+  params: GetReportsParams
 ): Promise<GetReportSummariesResult> {
   const { type, currentPage, pageSize } = params;
 
   if (type !== "overall") {
     throw new Error(
-      `Unsupported report type: ${type}. Currently only "overall" type is supported.`,
+      `Unsupported report type: ${type}. Currently only "overall" type is supported.`
     );
   }
 
@@ -121,7 +121,7 @@ export async function getReportById(params: GetReportByIdParams): Promise<{
 
   if (type !== "overall") {
     throw new Error(
-      `Unsupported report type: ${type}. Currently only "overall" type is supported.`,
+      `Unsupported report type: ${type}. Currently only "overall" type is supported.`
     );
   }
 
