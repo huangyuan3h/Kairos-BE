@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 /* eslint-disable no-console */
+// bun run src/ai-tools/scripts/run_google_news.ts
 
 import { GoogleNewsTool } from "..";
 import type { Result } from "../base";
@@ -24,7 +25,7 @@ async function main() {
       windowHours: args.windowHours,
       limit: args.limit,
     },
-    {},
+    {}
   )) as Result<GoogleNewsOutput>;
   if (!result.ok) {
     console.error("Error:", result.error);
@@ -49,7 +50,7 @@ async function main() {
   }
 }
 
-main().catch((err) => {
+main().catch(err => {
   console.error("Unhandled error:", err);
   process.exit(1);
 });

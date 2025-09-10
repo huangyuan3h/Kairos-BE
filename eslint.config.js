@@ -183,6 +183,8 @@ module.exports = [
       "sst.config.ts",
       "*.config.ts",
       "*.config.js",
+      // Project-level configs not covered above
+      ".prettierrc.js",
     ],
   },
 

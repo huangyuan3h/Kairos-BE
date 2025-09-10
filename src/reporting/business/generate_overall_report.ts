@@ -6,6 +6,7 @@ import "dotenv/config";
 import { z } from "zod";
 import { createDynamoReportRepository } from "../db/dynamo_report_repository";
 import type { OverallReport } from "../types/domain";
+import { getLogger } from "@src/util/logger";
 
 /**
  * Simplified AI Agent-driven overall report generation workflow.
@@ -20,16 +21,17 @@ const reportSchema = z.object({
   content: z
     .string()
     .describe(
-      "Detailed market analysis content in Chinese, including investment suggestions and market insights",
+      "Detailed market analysis content in Chinese, including investment suggestions and market insights"
     ),
 });
 
 export async function generateOverallReport(): Promise<OverallReport> {
+  const logger = getLogger("reporting/generate_overall_report");
   // Get configuration from environment variables
   const geminiApiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
   if (!geminiApiKey) {
     throw new Error(
-      "GOOGLE_GENERATIVE_AI_API_KEY environment variable is required",
+      "GOOGLE_GENERATIVE_AI_API_KEY environment variable is required"
     );
   }
 
@@ -41,7 +43,7 @@ export async function generateOverallReport(): Promise<OverallReport> {
   const p = await langfuse.prompt.get("report/overall_system");
   if (!p) {
     throw new Error(
-      "Missing Langfuse prompt: 'report/overall_system'. Please create it before generating reports.",
+      "Missing Langfuse prompt: 'report/overall_system'. Please create it before generating reports."
     );
   }
   const systemPrompt: string = p.compile({ asOfDate });
@@ -52,18 +54,27 @@ export async function generateOverallReport(): Promise<OverallReport> {
     tableName: getDynamoTableName(DynamoTable.Reports),
   });
 
+  // Get tools and add debugging
+  const tools = getOverallReportTools();
+  logger.debug({ tools: Object.keys(tools) }, "Available tools");
+  logger.debug({ systemPrompt }, "System prompt");
+
   // Initialize AI agent with Gemini 2.5 Flash and custom schema
   const aiAgent = createObjectAgentWithSchema({
     model: "gemini-2.5-flash", // Use gemini-2.5-flash as requested
-    tools: getOverallReportTools(), // Provide NEWS + MACRO tools as a named set
+    tools, // Provide NEWS + MACRO tools as a named set
     systemPrompt,
-    // Require at least one tool call; system prompt instructs which tools to call and how
-    toolChoice: "required",
+    // Use 'auto' instead of 'required' for better compatibility
+    toolChoice: "auto",
     schema: reportSchema, // Use custom schema for report generation
   });
 
+  logger.info("Starting report generation with tools");
+
   // Generate structured report object using AI agent
   const response = await aiAgent.generate("");
+
+  logger.debug({ response }, "AI Agent response");
 
   // Extract structured data from response
   // Note: ai.generateObject returns an object with the parsed payload on `object`

@@ -14,7 +14,7 @@ const APP_NAME = "kairos-be";
 
 export function getDynamoTableName(
   table: DynamoTable,
-  options: GetDynamoTableNameOptions = {},
+  options: GetDynamoTableNameOptions = {}
 ): string {
   const stage = options.stage ?? getStage();
 

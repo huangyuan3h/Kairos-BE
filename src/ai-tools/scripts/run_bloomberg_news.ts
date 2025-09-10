@@ -24,7 +24,7 @@ async function main() {
       windowHours: args.windowHours,
       limit: args.limit,
     },
-    {},
+    {}
   )) as Result<BloombergNewsOutput>;
   if (!result.ok) {
     console.error("Error:", result.error);
@@ -49,7 +49,7 @@ async function main() {
   }
 }
 
-main().catch((err) => {
+main().catch(err => {
   console.error("Unhandled error:", err);
   process.exit(1);
 });

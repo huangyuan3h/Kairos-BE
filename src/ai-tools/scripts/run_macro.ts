@@ -20,7 +20,7 @@ async function main() {
     {
       windowDays: args.windowDays,
     },
-    {},
+    {}
   )) as Result<MacroSnapshotOutput>;
 
   if (!res.ok) {
@@ -75,7 +75,7 @@ async function main() {
   for (const line of bullets) console.log(`  - ${line}`);
 }
 
-main().catch((err) => {
+main().catch(err => {
   console.error("Unhandled error:", err);
   process.exit(1);
 });

@@ -9,7 +9,7 @@ async function main() {
   console.log(JSON.stringify(report, null, 2));
 }
 
-main().catch((err) => {
+main().catch(err => {
   // eslint-disable-next-line no-console
   console.error(err);
   process.exit(1);

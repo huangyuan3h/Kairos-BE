@@ -46,7 +46,7 @@ export type MacroSnapshotOutput = {
  * Returns the latest value if found.
  */
 export async function fetchCnR007Standalone(
-  _debug = false,
+  _debug = false
 ): Promise<number | undefined> {
   type AnyFetch = (input: any, init?: any) => Promise<any>;
   const fetchFn: AnyFetch = (globalThis as any).fetch as AnyFetch;
@@ -81,7 +81,7 @@ export async function fetchCnR007Standalone(
     if (idx >= 0) {
       const slice = text.slice(
         Math.max(0, idx - 200),
-        Math.min(text.length, idx + 200),
+        Math.min(text.length, idx + 200)
       );
       const num = slice.match(/([0-9]+(?:\.[0-9]+)?)(?=\s*%?)/);
       if (num) {
@@ -97,7 +97,7 @@ export async function fetchCnR007Standalone(
       const controller = new AbortCtor();
       const to = (globalThis as any).setTimeout(
         () => controller.abort(),
-        7000,
+        7000
       ) as unknown as number;
       const res = await fetchFn(u, { headers, signal: controller.signal });
       (globalThis as any).clearTimeout(to);
@@ -124,7 +124,7 @@ export async function fetchCnR007Standalone(
       const controller = new AbortCtor();
       const to = (globalThis as any).setTimeout(
         () => controller.abort(),
-        7000,
+        7000
       ) as unknown as number;
       const res = await fetchFn(url, {
         headers: { Accept: "application/json" },
@@ -136,7 +136,7 @@ export async function fetchCnR007Standalone(
       const arr = Array.isArray(json) ? json : [json];
       for (const row of arr) {
         const desc = String(
-          row?.Category || row?.Indicator || row?.shortname || "",
+          row?.Category || row?.Indicator || row?.shortname || ""
         ).toLowerCase();
         if (!desc.includes("shibor") && !desc.includes("interbank")) continue;
         const v = Number(row?.LatestValue ?? row?.Last ?? row?.Value);
@@ -175,7 +175,7 @@ export async function fetchCnMlfStandalone(): Promise<number | undefined> {
       const ctrl1 = new AbortCtor();
       const t1 = (globalThis as any).setTimeout(
         () => ctrl1.abort(),
-        7000,
+        7000
       ) as unknown as number;
       const res = await fetchFn(listUrl, { headers, signal: ctrl1.signal });
       (globalThis as any).clearTimeout(t1);
@@ -204,7 +204,7 @@ export async function fetchCnMlfStandalone(): Promise<number | undefined> {
         const ctrl2 = new AbortCtor();
         const t2 = (globalThis as any).setTimeout(
           () => ctrl2.abort(),
-          7000,
+          7000
         ) as unknown as number;
         const res2 = await fetchFn(detailUrl, {
           headers,
@@ -248,7 +248,7 @@ export async function fetchCnMlfStandalone(): Promise<number | undefined> {
       const ctrl = new AbortCtor();
       const t = (globalThis as any).setTimeout(
         () => ctrl.abort(),
-        7000,
+        7000
       ) as unknown as number;
       const res = await fetchFn(url, {
         headers: { Accept: "application/json" },
@@ -274,7 +274,7 @@ export async function fetchCnMlfStandalone(): Promise<number | undefined> {
  */
 export async function fetchVstoxxStandalone(
   windowDays: number,
-  debug = false,
+  debug = false
 ): Promise<{ value?: number; delta?: number }> {
   type AnyFetch = (input: any, init?: any) => Promise<any>;
   const fetchFn: AnyFetch = (globalThis as any).fetch as AnyFetch;
@@ -284,10 +284,10 @@ export async function fetchVstoxxStandalone(
     const ctrl1 = new AbortCtor();
     const t1 = (globalThis as any).setTimeout(
       () => ctrl1.abort(),
-      7000,
+      7000
     ) as unknown as number;
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent("^V2TX")}?range=${encodeURIComponent(
-      `${Math.max(2, Math.min(30, windowDays))}d`,
+      `${Math.max(2, Math.min(30, windowDays))}d`
     )}&interval=1d`;
     const res = await fetchFn(url, {
       headers: { Accept: "application/json" },
@@ -299,7 +299,7 @@ export async function fetchVstoxxStandalone(
       const closes =
         json?.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? [];
       const valid = (closes as any[]).filter(
-        (v) => typeof v === "number" && Number.isFinite(v),
+        v => typeof v === "number" && Number.isFinite(v)
       );
       if (valid.length >= 1) {
         const first = valid[0] as number;
@@ -320,7 +320,7 @@ export async function fetchVstoxxStandalone(
     const ctrl2 = new AbortCtor();
     const t2 = (globalThis as any).setTimeout(
       () => ctrl2.abort(),
-      7000,
+      7000
     ) as unknown as number;
     const url = `https://stooq.com/q/d/l/?s=v2tx&i=d`;
     const res = await fetchFn(url, {
@@ -341,7 +341,7 @@ export async function fetchVstoxxStandalone(
           .filter((v: number) => Number.isFinite(v));
         if (closes.length > 0) {
           const slice = closes.slice(
-            -Math.max(2, Math.min(windowDays, closes.length)),
+            -Math.max(2, Math.min(windowDays, closes.length))
           );
           const first = slice[0];
           const last = slice[slice.length - 1];
@@ -362,10 +362,10 @@ export async function fetchVstoxxStandalone(
     const ctrl3 = new AbortCtor();
     const t3 = (globalThis as any).setTimeout(
       () => ctrl3.abort(),
-      7000,
+      7000
     ) as unknown as number;
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent("V2TX.DE")}?range=${encodeURIComponent(
-      `${Math.max(2, Math.min(30, windowDays))}d`,
+      `${Math.max(2, Math.min(30, windowDays))}d`
     )}&interval=1d`;
     const res = await fetchFn(url, {
       headers: { Accept: "application/json" },
@@ -377,7 +377,7 @@ export async function fetchVstoxxStandalone(
       const closes =
         json?.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? [];
       const valid = (closes as any[]).filter(
-        (v) => typeof v === "number" && Number.isFinite(v),
+        v => typeof v === "number" && Number.isFinite(v)
       );
       if (valid.length >= 1) {
         const first = valid[0] as number;
@@ -512,7 +512,7 @@ export const MacroLiquiditySnapshotTool = defineTool<
       const controller = new AbortControllerCtor();
       const timeout = setTimeoutFn(
         () => controller.abort(),
-        8000,
+        8000
       ) as unknown as number;
       try {
         const res = await fetchFn(url, {
@@ -558,7 +558,7 @@ export const MacroLiquiditySnapshotTool = defineTool<
 
     function _extractNearbyNumber(
       html: string,
-      markers: string[],
+      markers: string[]
     ): number | undefined {
       const lower = html.toLowerCase();
       for (const m of markers) {
@@ -580,13 +580,13 @@ export const MacroLiquiditySnapshotTool = defineTool<
       const controller = new AbortControllerCtor();
       const timeout = setTimeoutFn(
         () => controller.abort(),
-        8000,
+        8000
       ) as unknown as number;
       try {
         const cred = "guest:guest"; // getTradingEconomicsCred(); // Removed as per edit hint
         const sep = path.includes("?") ? "&" : "?";
         const url = `https://api.tradingeconomics.com${path}${sep}c=${encodeURIComponent(
-          cred,
+          cred
         )}&format=json`;
         const res = await fetchFn(url, {
           signal: (controller as any).signal,
@@ -602,16 +602,16 @@ export const MacroLiquiditySnapshotTool = defineTool<
     }
 
     async function fetchQuote(
-      symbolList: string[],
+      symbolList: string[]
     ): Promise<Record<string, number>> {
       const controller = new AbortControllerCtor();
       const timeout = setTimeoutFn(
         () => controller.abort(),
-        8000,
+        8000
       ) as unknown as number;
       try {
         const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(
-          symbolList.join(","),
+          symbolList.join(",")
         )}`;
         const res = await fetchFn(url, {
           signal: (controller as any).signal,
@@ -628,7 +628,7 @@ export const MacroLiquiditySnapshotTool = defineTool<
         for (const row of result) {
           const sym = String(row.symbol);
           const price = Number(
-            row.regularMarketPrice ?? row.postMarketPrice ?? row.preMarketPrice,
+            row.regularMarketPrice ?? row.postMarketPrice ?? row.preMarketPrice
           );
           if (Number.isFinite(price)) map[sym] = price;
         }
@@ -653,12 +653,12 @@ export const MacroLiquiditySnapshotTool = defineTool<
       const controller = new AbortControllerCtor();
       const timeout = setTimeoutFn(
         () => controller.abort(),
-        8000,
+        8000
       ) as unknown as number;
       try {
         const range = `${windowDays}d`;
         const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(
-          symbol,
+          symbol
         )}?range=${range}&interval=1d`;
         const res = await fetchFn(url, {
           signal: (controller as any).signal,
@@ -674,7 +674,7 @@ export const MacroLiquiditySnapshotTool = defineTool<
         const closes: Array<number | null | undefined> =
           result?.indicators?.quote?.[0]?.close ?? [];
         const valid = closes.filter(
-          (v: any) => typeof v === "number" && Number.isFinite(v),
+          (v: any) => typeof v === "number" && Number.isFinite(v)
         ) as number[];
         if (valid.length === 0) return {};
         const first = valid[0];
@@ -695,16 +695,16 @@ export const MacroLiquiditySnapshotTool = defineTool<
     // Example: us2y (US 2Y), returns CSV with Date,Open,High,Low,Close,Volume
     async function fetchStooqSeries(
       stooqSymbol: string,
-      maxPoints: number,
+      maxPoints: number
     ): Promise<{ lastClose?: number; firstClose?: number; delta?: number }> {
       const controller = new AbortControllerCtor();
       const timeout = setTimeoutFn(
         () => controller.abort(),
-        8000,
+        8000
       ) as unknown as number;
       try {
         const url = `https://stooq.com/q/d/l/?s=${encodeURIComponent(
-          stooqSymbol,
+          stooqSymbol
         )}&i=d`;
         const res = await fetchFn(url, {
           signal: (controller as any).signal,
@@ -727,7 +727,7 @@ export const MacroLiquiditySnapshotTool = defineTool<
           .filter((v: number) => Number.isFinite(v));
         if (closes.length === 0) return {};
         const slice = closes.slice(
-          -Math.max(2, Math.min(maxPoints, closes.length)),
+          -Math.max(2, Math.min(maxPoints, closes.length))
         );
         const first = slice[0];
         const last = slice[slice.length - 1];
@@ -895,9 +895,7 @@ export const MacroLiquiditySnapshotTool = defineTool<
       commodities.WTI,
       commodities.GOLD,
       commodities.COPPER,
-    ].filter(
-      (v) => typeof v === "number" && Number.isFinite(v as number),
-    ).length;
+    ].filter(v => typeof v === "number" && Number.isFinite(v as number)).length;
     if (availableCount < 2) {
       return {
         ok: false,
@@ -910,29 +908,29 @@ export const MacroLiquiditySnapshotTool = defineTool<
     const bullets: string[] = [];
     if (typeof rates.UST10Y === "number" && typeof deltas.UST10Y === "number") {
       bullets.push(
-        `${deltas.UST10Y >= 0 ? "Yields rise" : "Yields decline"}; 10Y at ${rates.UST10Y.toFixed(2)}%`,
+        `${deltas.UST10Y >= 0 ? "Yields rise" : "Yields decline"}; 10Y at ${rates.UST10Y.toFixed(2)}%`
       );
     }
     if (typeof fx.DXY === "number" && typeof deltas.DXY === "number") {
       bullets.push(
-        `USD ${deltas.DXY >= 0 ? "strengthens" : "softens"}; DXY ${fx.DXY.toFixed(1)}`,
+        `USD ${deltas.DXY >= 0 ? "strengthens" : "softens"}; DXY ${fx.DXY.toFixed(1)}`
       );
     }
     if (typeof vol.VIX === "number") {
       bullets.push(
         `Volatility ${
           typeof deltas.VIX === "number" && deltas.VIX >= 0 ? "up" : "subdued"
-        }`,
+        }`
       );
     }
     if (typeof commodities.WTI === "number" && typeof deltas.WTI === "number") {
       bullets.push(
-        `Crude ${deltas.WTI >= 0 ? "rebounds" : "eases"}; WTI $${commodities.WTI.toFixed(1)}`,
+        `Crude ${deltas.WTI >= 0 ? "rebounds" : "eases"}; WTI $${commodities.WTI.toFixed(1)}`
       );
     }
     if (bullets.length === 0) {
       bullets.push(
-        "Macro snapshot available; insufficient deltas for directionality",
+        "Macro snapshot available; insufficient deltas for directionality"
       );
     }
 
@@ -971,7 +969,7 @@ export const MacroLiquiditySnapshotTool = defineTool<
         windowDays,
         missing,
         { rates, fx, vol, commodities },
-        sources,
+        sources
       );
     }
 

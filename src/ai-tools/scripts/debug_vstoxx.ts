@@ -17,11 +17,11 @@ async function main() {
     "VSTOXX:",
     (out.value ?? "-") + " (Δ=" + (out.delta ?? "-") + ")",
     "|",
-    ms + "ms",
+    ms + "ms"
   );
 }
 
-main().catch((err) => {
+main().catch(err => {
   console.error("Unhandled error:", err);
   process.exit(1);
 });

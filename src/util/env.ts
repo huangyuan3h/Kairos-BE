@@ -23,7 +23,7 @@ export function isLocal(): boolean {
   const sstDev =
     process.env.SST_DEV === "true" || process.env.IS_LOCAL === "true";
   const isLambda = Boolean(
-    process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.AWS_EXECUTION_ENV,
+    process.env.AWS_LAMBDA_FUNCTION_NAME || process.env.AWS_EXECUTION_ENV
   );
   return sstDev || !isLambda;
 }
@@ -42,7 +42,7 @@ export interface GetEnvVarOptions<T> {
  */
 export function getEnvVar<T = string>(
   name: string,
-  options: GetEnvVarOptions<T> = {},
+  options: GetEnvVarOptions<T> = {}
 ): T {
   const stage = getStage();
   const stageKey = `${name}__${stage}`;
@@ -76,7 +76,7 @@ export function getString(name: string, defaultValue?: string): string {
 export function getNumber(name: string, defaultValue?: number): number {
   return getEnvVar<number>(name, {
     defaultValue,
-    parse: (raw) => {
+    parse: raw => {
       const n = Number(raw);
       if (Number.isNaN(n))
         throw new Error(`Env var ${name} is not a number: ${raw}`);
@@ -88,7 +88,7 @@ export function getNumber(name: string, defaultValue?: number): number {
 export function getBoolean(name: string, defaultValue?: boolean): boolean {
   return getEnvVar<boolean>(name, {
     defaultValue,
-    parse: (raw) => {
+    parse: raw => {
       const lowered = raw.toLowerCase();
       if (["1", "true", "yes", "y"].includes(lowered)) return true;
       if (["0", "false", "no", "n"].includes(lowered)) return false;

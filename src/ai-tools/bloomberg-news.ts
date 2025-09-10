@@ -62,8 +62,8 @@ function getBloombergFeeds(): string[] {
   if (env && typeof env === "string") {
     return env
       .split(",")
-      .map((s) => s.trim())
-      .filter((s) => /^https?:\/\//i.test(s));
+      .map(s => s.trim())
+      .filter(s => /^https?:\/\//i.test(s));
   }
   return [
     "https://feeds.bloomberg.com/markets/news.rss",
@@ -86,7 +86,7 @@ function decodeHtmlEntities(input: string): string {
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/g, "'")
     .replace(/&#x([0-9a-fA-F]+);/g, (_, h) =>
-      String.fromCharCode(parseInt(h, 16)),
+      String.fromCharCode(parseInt(h, 16))
     )
     .replace(/&#(\d+);/g, (_, d) => String.fromCharCode(parseInt(d, 10)));
 }
@@ -150,7 +150,7 @@ function parseAtomOrRss(xml: string): BloombergNewsItem[] {
 
 async function fetchFeed(
   url: string,
-  timeoutMs = 8000,
+  timeoutMs = 8000
 ): Promise<BloombergNewsItem[]> {
   const controller = new AbortControllerCtor();
   const timeout = setTimeoutFn(() => controller.abort(), timeoutMs);
@@ -166,9 +166,9 @@ async function fetchFeed(
     const host = url.replace(/^https?:\/\//i, "").split("/")[0] || "RSS";
     const path = url.replace(/^https?:\/\/(?:[^/]+)(\/.*)$/i, "$1");
     const section = (
-      path.split("/").find((seg) => seg.length > 0) ?? ""
+      path.split("/").find(seg => seg.length > 0) ?? ""
     ).toLowerCase();
-    return parseAtomOrRss(xml).map((i) => ({
+    return parseAtomOrRss(xml).map(i => ({
       ...i,
       source: host,
       section: section || undefined,
@@ -193,13 +193,13 @@ export const BloombergNewsTool = defineTool<
     const { windowHours, limit } = input;
     const feeds = getBloombergFeeds();
 
-    const results = await Promise.all(feeds.map((f) => fetchFeed(f)));
+    const results = await Promise.all(feeds.map(f => fetchFeed(f)));
     const all = results.flat();
 
     const cutoff =
       Date.now() - Math.min(Math.max(1, windowHours), 72) * 3600 * 1000;
     const withinWindow = all.filter(
-      (i) => new Date(i.publishedAt).getTime() >= cutoff,
+      i => new Date(i.publishedAt).getTime() >= cutoff
     );
 
     // Deduplicate by URL or title
@@ -222,7 +222,7 @@ export const BloombergNewsTool = defineTool<
     // Sort by publishedAt desc
     const sorted = deduped.sort(
       (a, b) =>
-        new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime(),
+        new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
     );
 
     const items = sorted.slice(0, Math.min(Math.max(1, limit), 50));

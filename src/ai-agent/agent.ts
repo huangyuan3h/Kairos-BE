@@ -12,6 +12,7 @@ import {
   endActiveSpan,
   instrumentationConfig,
 } from "./telemetry/instrumentation";
+import { getLogger } from "@src/util/logger";
 
 // Default schema for object generation when no specific schema is provided
 const defaultObjectSchema = z.any();
@@ -44,7 +45,7 @@ export interface AiAgentConfig {
 // AI Agent interface
 export interface AiAgent {
   chat: (
-    messages: Array<{ role: "user" | "assistant"; content: string }>,
+    messages: Array<{ role: "user" | "assistant"; content: string }>
   ) => Promise<any>;
   generate: (prompt: string) => Promise<any>;
 }
@@ -76,6 +77,9 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
           const toolId = crypto.randomUUID();
           const toolStartTime = Date.now();
 
+          const logger = getLogger("ai-agent/tool");
+          logger.debug({ toolName, input }, "Tool called");
+
           // Start tool execution span
           const toolSpan = await startActiveObservation(
             `tool_execution_${toolName}`,
@@ -93,6 +97,9 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
                 // Execute the original tool
                 const result = await tool.execute(input);
                 const executionTime = Date.now() - toolStartTime;
+
+                logger.info({ toolName, executionTime }, "Tool completed");
+                logger.debug({ toolName, result }, "Tool result");
 
                 // Log tool execution details
                 updateActiveObservation({
@@ -126,6 +133,11 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
                 const errorMessage =
                   error instanceof Error ? error.message : String(error);
 
+                logger.error(
+                  { toolName, executionTime, error: errorMessage },
+                  "Tool failed"
+                );
+
                 // Log tool execution error
                 updateActiveObservation({
                   output: `error: ${errorMessage}`,
@@ -158,7 +170,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
               } finally {
                 endActiveSpan();
               }
-            },
+            }
           );
 
           return toolSpan;
@@ -171,7 +183,7 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
 
   // Chat method with different output formats - return the actual result
   const chat = async (
-    messages: Array<{ role: "user" | "assistant"; content: string }>,
+    messages: Array<{ role: "user" | "assistant"; content: string }>
   ) => {
     const inputText = messages[messages.length - 1].content;
     const chatId = crypto.randomUUID();
@@ -246,28 +258,28 @@ export function createAiAgent(config: AiAgentConfig = {}): AiAgent {
 
 // Utility function to create a simple text-only agent
 export function createTextAgent(
-  config: Omit<AiAgentConfig, "outputFormat"> = {},
+  config: Omit<AiAgentConfig, "outputFormat"> = {}
 ): AiAgent {
   return createAiAgent({ ...config, outputFormat: "text" });
 }
 
 // Utility function to create a streaming agent
 export function createStreamingAgent(
-  config: Omit<AiAgentConfig, "outputFormat"> = {},
+  config: Omit<AiAgentConfig, "outputFormat"> = {}
 ): AiAgent {
   return createAiAgent({ ...config, outputFormat: "stream-text" });
 }
 
 // Utility function to create an object-generating agent
 export function createObjectAgent(
-  config: Omit<AiAgentConfig, "outputFormat"> = {},
+  config: Omit<AiAgentConfig, "outputFormat"> = {}
 ): AiAgent {
   return createAiAgent({ ...config, outputFormat: "object" });
 }
 
 // Utility function to create an object-generating agent with custom schema
 export function createObjectAgentWithSchema(
-  config: Omit<AiAgentConfig, "outputFormat"> & { schema: z.ZodSchema<any> },
+  config: Omit<AiAgentConfig, "outputFormat"> & { schema: z.ZodSchema<any> }
 ): AiAgent {
   return createAiAgent({ ...config, outputFormat: "object" });
 }

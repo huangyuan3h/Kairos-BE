@@ -10,7 +10,7 @@ async function main() {
   console.log("CN_R007:", val ?? "-", "|", ms + "ms");
 }
 
-main().catch((err) => {
+main().catch(err => {
   console.error("Unhandled error:", err);
   process.exit(1);
 });
