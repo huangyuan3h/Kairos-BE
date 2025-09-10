@@ -1,3 +1,4 @@
+/// <reference path="../../.sst/platform/config.d.ts" />
 /**
  * Cron job configurations
  * Manages all scheduled tasks and background jobs
@@ -6,7 +7,7 @@ import { getGeminiApiKey, getLangfuseSecrets } from "../secrets";
 
 export async function createCronJobs(
   linkables: { linkableValue: any },
-  database: { marketDataTable: any; reportsTable: any }
+  database: { marketDataTable: any; indexDataTable: any; reportsTable: any }
 ) {
   // No Lambda Layer: Python deps are handled by container packaging
 
@@ -56,8 +57,28 @@ export async function createCronJobs(
     },
   });
 
+  // Sync main index/ETF daily quotes with 3-year backfill & gap-filling
+  // Runs at 08:00 UTC (16:00 China time) daily before 18:00 report
+  const syncIndexQuotes = new sst.aws.Cron("SyncIndexQuotes", {
+    schedule: "cron(0 8 * * ? *)",
+    function: {
+      handler: "functions/python/sync_index_quotes.handler",
+      runtime: "python3.11",
+      python: { container: true },
+      timeout: "15 minutes",
+      memory: "2048 MB",
+      storage: "1 GB",
+      link: [database.indexDataTable, database.marketDataTable],
+      environment: {
+        INDEX_DATA_TABLE: database.indexDataTable.name,
+        MARKET_DATA_TABLE: database.marketDataTable.name,
+      },
+    },
+  });
+
   return {
     syncMarketData,
+    syncIndexQuotes,
     overallReport,
   };
 }

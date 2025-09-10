@@ -64,6 +64,26 @@ export function createDatabase() {
     },
   });
 
+  // Index data table for storing index/ETF daily quotes (separate from MarketData)
+  const indexDataTable = new sst.aws.Dynamo("IndexData", {
+    fields: {
+      pk: "string",
+      sk: "string",
+      // GSI1 for symbol-based time series
+      gsi1pk: "string",
+      gsi1sk: "string",
+    },
+    primaryIndex: { hashKey: "pk", rangeKey: "sk" },
+    globalIndexes: {
+      bySymbol: { hashKey: "gsi1pk", rangeKey: "gsi1sk" },
+    },
+    transform: {
+      table: {
+        name: `${$app.name}-${$app.stage}-IndexDataTable`,
+      },
+    },
+  });
+
   // Reports table for storing daily overall reports (non user-specific)
   // Data shape (non-exhaustive; only keys are defined at table creation time):
   // {
@@ -106,6 +126,7 @@ export function createDatabase() {
 
   return {
     marketDataTable,
+    indexDataTable,
     reportsTable,
   };
 }
