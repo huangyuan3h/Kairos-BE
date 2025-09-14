@@ -13,9 +13,9 @@
 ## 📌 范围与默认值（待确认）
 
 - **资产覆盖（优先级）**:
-  - P0：基准指数/ETF（CN：沪深300/上证综指/中证500；US：SPX/NDX/R2000；ETF：SPY/QQQ/IWM）
-  - P1：代表性大盘股（CN/US 各 20–50 只）
-  - P2：扩展至全量（全 A + US 主板）
+  - P0（已完成）：基准指数/ETF（CN：沪深300/上证综指/中证500；US：SPX/NDX/R2000；ETF：SPY/QQQ/IWM）
+  - P1（进行中）：CN 全量 A 股（剔除已退市）
+  - P2：US 主板全量（NASDAQ/NYSE/AMEX，剔除已退市）
 - **数据源**:
   - CN：`akshare`
   - US：`yfinance`
@@ -28,41 +28,54 @@
 
 ## 🧱 架构基线（与现有表设计对齐）
 
-- 表：`MarketData`（SST 单表）
+- 表：`MarketData`（SST 单表，继续复用，强化 stock 时间序列查询能力）
 - 主键：`pk=STOCK#<symbol>`；排序键：
   - 日线：`sk=QUOTE#YYYY-MM-DD`（使用 `core.database.keys.make_sk_quote_date`）
   - 信号：`sk=META#SIGNAL#YYYY-MM-DD`
 - GSI：
-  - `bySymbol`：`gsi1pk=SYMBOL#<symbol>`，`gsi1sk=ENTITY#<TYPE>#<timestamp>`（按符号时间线）
+  - `bySymbol`（保留）：`gsi1pk=SYMBOL#<symbol>`，`gsi1sk=ENTITY#<TYPE>#<timestamp>`（按符号时间线）
+  - `byDate`（新增）：`gsi2pk=DATE#YYYY-MM-DD`，`gsi2sk=STOCK#<symbol>`（按交易日批量检索全市场或子集）
+  - `byMonth`（可选）：`gsi3pk=MONTH#YYYY-MM`，`gsi3sk=STOCK#<symbol>#DATE#YYYY-MM-DD`（提升跨日窗口聚合效率）
   - `byMarketStatus`：维持现有用于目录查询
+  - 说明：复杂时间段查询以 `pk` 的范围（`between`）为主，跨标的/跨日场景通过 `byDate/byMonth` 分片并行拉取
 
 ## 📆 分阶段执行计划（带验收标准）
 
 ### Phase 0｜范围澄清（P0 必须）
 
-- [ ] 确认 P0 资产清单（指数/ETF 列表与符号标准）
-- [ ] 确认数据源与限速策略（CN：`akshare`，US：`yfinance`）
-- [ ] 确认调度时间与回填窗口（默认 5 日）
+- [x] 确认 P0 资产清单（指数/ETF 列表与符号标准）
+- [x] 确认数据源与限速策略（CN：`akshare`，US：`yfinance`）
+- [x] 确认调度时间与回填窗口（默认 5 日）
 - 验收：有版本化的资产清单与调度配置（代码配置/环境变量说明）
 
-### Phase 1｜数据模型与键设计
+### Phase 0.5｜范围更新与设计决策（Stock 全量化）
+
+- [ ] 决策：沿用 `MarketData` 单表并新增 `byDate/byMonth` GSI（优先）或新建 `StockData` 表
+- [ ] 定义复杂时间段查询的接口约定（单标的区间、跨标的同日、跨日跨标的）
+- [ ] 评估日级分片策略与并发度（避免热分区、控制读写峰值）
+- 验收：设计决策记录 + 查询样例通过小规模演练
+
+### Phase 1｜数据模型与键设计（Stock 强化）
 
 - [ ] 定义日线 `OHLCV` schema：`date, open, high, low, close, adj_close, volume, currency, source, ingested_at, corporate_action_flags`
 - [ ] 确认键位：`QUOTE#YYYY-MM-DD`，信号：`META#SIGNAL#YYYY-MM-DD`
-- [ ] 确认 GSI 仅用 `bySymbol` 做时间序列；不做全市场“按日”GSI（后续如需再扩展）
-- 验收：通过单元测试的 schema 校验与键位生成（`make_sk_quote_date`）
+- [ ] 新增 `byDate`、可选 `byMonth` GSI 与访问模式（扫描窗口与批量聚合）
+- [ ] 批量写入与读并发策略（批次大小、重试、幂等覆盖）
+- 验收：通过单元测试的 schema 校验与键位生成（`make_sk_quote_date`），并通过查询用例覆盖三类复杂时间段
 
 ### Phase 2｜数据源与覆盖清单
 
-- [ ] 列出并落盘 P0 资产及映射（指数代码、ETF 代码、统一符号规范）
-- [ ] 评估并记录各源的字段、时区、复权/拆分处理
+- [ ] 列出并落盘 CN 全量 A 股清单（过滤退市），并维护符号规范映射
+- [ ] 评估并记录 `akshare/yfinance` 字段、时区、复权/拆分处理
+- [ ] 规划 US 主板全量清单的获取方式与限速策略
 - 验收：资产映射表 + 源字段对照表（文档化）
 
 ### Phase 3｜每日同步作业（ETL）
 
-- [ ] 任务拆分：`sync_daily_quotes_cn`、`sync_daily_quotes_us`、`sync_benchmarks`（指数/ETF/VIX/FX/Rf）
+- [ ] 任务拆分：`sync_daily_quotes_cn_all`（CN 全量 A 股）、`sync_daily_quotes_us_all`（US 主板全量）、`sync_benchmarks`
 - [ ] 支持“增量+回填”窗口（默认近 5 日）与幂等写入（覆盖同键）
-- [ ] 交易日历：非交易日跳过；源异常自动重试与降级
+- [ ] 交易日历：非交易日跳过；源异常自动重试与降级；限速与并发控制
+- [ ] Lambda：`ingest_cn_stocks` 与 `ingest_us_stocks`（分别处理 CN/US 全量同步）
 - 验收：
   - [ ] 每日跑通，覆盖率 ≥ 95%
   - [ ] 回填机制验证通过（删除后重跑可恢复）
@@ -95,6 +108,7 @@
 - [ ] 将当日信号以 `META#SIGNAL#YYYY-MM-DD` 写入 `MarketData`
 - [ ] 在 `src/reporting`：新增业务查询（当日/最近N日信号）与脚本 `debug_daily_signal`
 - [ ] 暴露 REST/GraphQL 读端（先内部使用，后续对外）
+- [ ] Lambda：`query_stock_timeseries`（复杂时间段查询读端）
 - 验收：
   - [ ] 通过用例可查询到最新信号
   - [ ] 报告页可渲染“进攻/防守 + 理由”
@@ -110,19 +124,19 @@
 
 ## 🔧 技术约束与复用
 
-- 复用 `MarketData` 现有单表与 `make_sk_quote_date` 键位函数
+- 复用 `MarketData` 现有单表与 `make_sk_quote_date` 键位函数；若新表，则保持相同键位与事件模型
 - 业务逻辑放入 `business/` 层并配套单元测试，支持未来 GraphQL 接入
 - 首版以免费源快速闭环，后续可热切换到付费源
 
 ## ✅ 快速检查清单（执行用）
 
-- [ ] 资产清单与调度配置已确认
-- [ ] Schema 与键位单测通过
-- [ ] ETL 跑通且覆盖率达标
+- [ ] 资产清单与调度配置已确认（含 CN 全量 A 股、US 主板全量）
+- [ ] Schema 与键位/新 GSI 单测通过（含复杂时间段查询用例）
+- [ ] ETL 跑通且覆盖率达标（CN→US 分阶段）
 - [ ] DQ 报表生成
 - [ ] 信号生成与解释字段产出
 - [ ] 回测报告生成并固化阈值
-- [ ] 查询/API/报告联调通过
+- [ ] 查询/API/报告联调通过（含 `query_stock_timeseries`）
 - [ ] 定时、重试、报警生效
 
 ---

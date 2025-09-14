@@ -34,6 +34,26 @@ def is_trading_day(market: str, d: date) -> bool:
     return not schedule.empty
 
 
+def last_trading_day(market: str, d: date) -> date:
+    """Return the most recent trading day on or before the given date for the market."""
+    # pyright: reportMissingImports=false
+    import pandas_market_calendars as pmc  # type: ignore[import]
+
+    code = _get_calendar_code(market)
+    if code is None:
+        return d
+    cal = pmc.get_calendar(code)
+    # Expand range a bit to ensure previous sessions exist at month edges
+    start = pd.Timestamp(d) - pd.Timedelta(days=14)
+    end = pd.Timestamp(d)
+    schedule = cal.schedule(start_date=start, end_date=end)
+    if schedule.empty:
+        return d
+    # last trading session end
+    last = schedule.index[-1]
+    return last.date()
+
+
 def infer_market_from_symbol(symbol: str) -> Optional[str]:
     s = str(symbol).strip().upper()
     if s.startswith("CN:"):

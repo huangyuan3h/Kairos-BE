@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from typing import Any, Dict, Iterable, List, Optional
+import time
+import random
 
 from boto3.dynamodb.conditions import Key  # type: ignore[import]
 from botocore.exceptions import BotoCoreError, ClientError  # type: ignore[import]
@@ -161,10 +163,24 @@ class DynamoRepository:
 
     # ---------- Batch operations ----------
     def batch_put(self, items: Iterable[Dict[str, Any]]) -> None:
-        """Put multiple items efficiently using batch_writer."""
-        try:
-            with self._table.batch_writer(overwrite_by_pkeys=["pk", "sk"]) as writer:
-                for item in items:
-                    writer.put_item(Item=item)
-        except (BotoCoreError, ClientError) as exc:
-            raise RepositoryError(f"Failed to batch put items: {exc}") from exc
+        """Put multiple items efficiently using batch_writer with retries.
+
+        Retries on transient DynamoDB errors with exponential backoff and jitter.
+        """
+        max_attempts = 3
+        base = 0.2
+        last_exc: Optional[Exception] = None
+        items_list = list(items)
+        for attempt in range(1, max_attempts + 1):
+            try:
+                with self._table.batch_writer(overwrite_by_pkeys=["pk", "sk"]) as writer:
+                    for item in items_list:
+                        writer.put_item(Item=item)
+                return
+            except (BotoCoreError, ClientError) as exc:
+                last_exc = exc
+                if attempt == max_attempts:
+                    break
+                sleep_s = base * (2 ** (attempt - 1)) + random.uniform(0, base)
+                time.sleep(sleep_s)
+        raise RepositoryError(f"Failed to batch put items after retries: {last_exc}") from last_exc
