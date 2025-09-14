@@ -101,11 +101,12 @@ def _fetch_cn_stock_daily_ak(symbol_unified: str, start: date, end: date) -> pd.
     if "volume" in df.columns:
         df["volume"] = df["volume"] * 100  # lots to shares
     if "turnover_rate" in df.columns:
-        # Handle both percentage and ratio
-        tr = df["turnover_rate"].astype(str).str.replace("%", "", regex=False)
+        # Detect percentage by presence of '%'; convert to ratio if found
+        orig = df["turnover_rate"].astype(str)
+        has_pct = orig.str.contains("%", regex=False).any()
+        tr = orig.str.replace("%", "", regex=False)
         df["turnover_rate"] = pd.to_numeric(tr, errors="coerce")
-        med = df["turnover_rate"].median(skipna=True)
-        if pd.notna(med) and med > 1.0:
+        if has_pct:
             df["turnover_rate"] = df["turnover_rate"] / 100.0
 
     # 4) Derived fields
