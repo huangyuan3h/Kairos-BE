@@ -18,6 +18,7 @@ from .repository import DynamoRepository
 from .exceptions import RepositoryError
 from .MarketData import MarketData
 from .IndexData import IndexData
+from .StockData import StockData
 
 __all__ = [
     "DynamoConfig",
@@ -26,6 +27,7 @@ __all__ = [
     "RepositoryError",
     "MarketData",
     "IndexData",
+    "StockData",
     "make_pk_stock",
     "make_pk_index",
     "make_sk_meta",

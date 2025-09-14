@@ -11,7 +11,7 @@ import { createOverallReportCron } from "./jobs/overall-report";
 
 export async function createCronJobs(
   linkables: { linkableValue: any },
-  database: { marketDataTable: any; indexDataTable: any; reportsTable: any }
+  database: { marketDataTable: any; indexDataTable: any; reportsTable: any; stockDataTable: any }
 ) {
   // No Lambda Layer: Python deps are handled by container packaging
 
