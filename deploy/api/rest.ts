@@ -59,6 +59,22 @@ export function createRestApi(
     },
   });
 
+  // Catalog fuzzy search (stocks/index/etf) backed by MarketData table
+  // Query params:
+  // - q: string (required) - name or symbol substring (case-sensitive for now)
+  // - market: optional (e.g., CN_A, US, INDEX, ETF); when provided, narrows to one GSI2 partition
+  // - limit: optional number (default 20)
+  if (database.marketDataTable) {
+    api.route("GET /catalog/search", {
+      handler: "functions/nodejs/search_catalog.handler",
+      runtime: "nodejs20.x",
+      link: [database.marketDataTable],
+      environment: {
+        MARKET_DATA_TABLE: database.marketDataTable.name,
+      },
+    });
+  }
+
   return {
     api,
   };
