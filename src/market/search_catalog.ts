@@ -2,6 +2,7 @@
  * Business logic: fuzzy search over MarketData catalog.
  */
 import { MarketDataRepository, CatalogItem } from "./db/marketdata_repository";
+import { getLogger } from "@src/util/logger";
 
 export interface SearchCatalogInput {
   q: string;
@@ -18,6 +19,7 @@ export interface SearchCatalogOutput {
 export async function searchCatalog(
   input: SearchCatalogInput
 ): Promise<SearchCatalogOutput> {
+  const logger = getLogger("market/search_catalog");
   const { q, market, tableName } = input;
   const limit = Math.min(Math.max(input.limit ?? 20, 1), 50);
   const repo = new MarketDataRepository({ tableName });
@@ -37,18 +39,34 @@ export async function searchCatalog(
   }
 
   if (market) {
-    const part = await repo.queryCatalogByMarketFuzzy({ market, q, limit });
-    await add(part);
+    try {
+      const part = await repo.queryCatalogByMarketFuzzy({ market, q, limit });
+      await add(part);
+    } catch (err) {
+      // If GSI is missing or query fails, fall back to bounded Scan
+      logger.warn(
+        { err },
+        "queryCatalogByMarketFuzzy failed; falling back to Scan"
+      );
+    }
   } else {
     const partitions = ["CN_A", "US", "INDEX", "ETF"];
     for (const mk of partitions) {
       if (collected.length >= limit) break;
-      const part = await repo.queryCatalogByMarketFuzzy({
-        market: mk,
-        q,
-        limit,
-      });
-      await add(part);
+      try {
+        const part = await repo.queryCatalogByMarketFuzzy({
+          market: mk,
+          q,
+          limit,
+        });
+        await add(part);
+      } catch (err) {
+        // Skip partition on error; a later Scan will still provide best-effort results
+        logger.warn(
+          { err, market: mk },
+          "queryCatalogByMarketFuzzy failed for market partition"
+        );
+      }
     }
   }
 
