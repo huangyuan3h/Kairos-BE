@@ -26,30 +26,42 @@ export function createDynamoReportRepository(params: {
 
       const pk = `REPORT#OVERALL`;
       try {
-        const query = new QueryCommand({
-          TableName: tableName,
-          KeyConditionExpression: "pk = :pk",
-          ExpressionAttributeValues: {
-            ":pk": pk,
-            ":rid": reportId,
-          },
-          FilterExpression: "reportId = :rid",
-          Limit: 1,
-          ScanIndexForward: false,
-        });
+        // We must not use Limit:1 together with a FilterExpression; otherwise
+        // non-latest items will be filtered out and appear as 404.
+        // Iterate pages until the target reportId is found or exhausted.
+        let lastEvaluatedKey: any | undefined = undefined;
+        while (true) {
+          const result = await doc.send(
+            new QueryCommand({
+              TableName: tableName,
+              KeyConditionExpression: "pk = :pk",
+              ExpressionAttributeValues: {
+                ":pk": pk,
+                ":rid": reportId,
+              },
+              FilterExpression: "reportId = :rid",
+              ScanIndexForward: false,
+              ExclusiveStartKey: lastEvaluatedKey,
+            })
+          );
 
-        const result = await doc.send(query);
-        const item = (result.Items || [])[0];
-        if (!item) return null;
+          const item = (result.Items || [])[0];
+          if (item) {
+            const report: OverallReport = {
+              reportId: item.reportId,
+              asOfDate: item.asOfDate,
+              title: item.title,
+              content: item.content,
+              createdAt: item.createdAt,
+            };
+            return report;
+          }
 
-        const report: OverallReport = {
-          reportId: item.reportId,
-          asOfDate: item.asOfDate,
-          title: item.title,
-          content: item.content,
-          createdAt: item.createdAt,
-        };
-        return report;
+          lastEvaluatedKey = result.LastEvaluatedKey as any | undefined;
+          if (!lastEvaluatedKey) break;
+        }
+
+        return null;
       } catch (error) {
         const errorMessage =
           error instanceof Error ? error.message : "Unknown error";

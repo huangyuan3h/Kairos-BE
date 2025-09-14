@@ -13,6 +13,14 @@ def make_pk_stock(symbol: str) -> str:
     return _concat("STOCK", symbol)
 
 
+def make_pk_index(symbol: str) -> str:
+    """Partition key for index-level entities (stored in IndexData table).
+
+    Using a distinct prefix to keep semantics explicit even across tables.
+    """
+    return _concat("INDEX", symbol)
+
+
 def make_sk_meta(entity_type: str, timestamp_iso: Optional[str] = None) -> str:
     """Sort key for metadata entities.
 

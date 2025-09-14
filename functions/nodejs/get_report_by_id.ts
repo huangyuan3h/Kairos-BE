@@ -6,13 +6,22 @@ import { getReportById } from "../../src/reporting/business/get_report";
 export const handler = async (event: any) => {
   try {
     const pathParams = event.pathParameters || {};
-    const id = pathParams.id;
-    if (!id) {
+    const rawId = pathParams.id;
+    if (!rawId) {
       return {
         statusCode: 400,
         body: JSON.stringify({ error: "id is required" }),
       };
     }
+
+    // Normalize potential double-encoding from clients (e.g., REPORT%2523...)
+    let id = decodeURIComponent(String(rawId));
+    try {
+      // If still contains encoded sequences, decode one more time
+      if (/%[0-9A-Fa-f]{2}/.test(id)) {
+        id = decodeURIComponent(id);
+      }
+    } catch {}
 
     const queryParams = event.queryStringParameters || {};
     const type = queryParams.type || "overall";

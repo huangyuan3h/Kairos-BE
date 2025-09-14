@@ -6,6 +6,7 @@ Exposes high-level DynamoDB repository and helpers.
 from .client import DynamoConfig, get_dynamo_table
 from .keys import (
     make_pk_stock,
+    make_pk_index,
     make_sk_meta,
     make_sk_quote_date,
     make_gsi1pk_symbol,
@@ -16,6 +17,7 @@ from .keys import (
 from .repository import DynamoRepository
 from .exceptions import RepositoryError
 from .MarketData import MarketData
+from .IndexData import IndexData
 
 __all__ = [
     "DynamoConfig",
@@ -23,7 +25,9 @@ __all__ = [
     "DynamoRepository",
     "RepositoryError",
     "MarketData",
+    "IndexData",
     "make_pk_stock",
+    "make_pk_index",
     "make_sk_meta",
     "make_sk_quote_date",
     "make_gsi1pk_symbol",
