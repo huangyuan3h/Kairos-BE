@@ -42,8 +42,13 @@ def test_daily_quotes_normalization(monkeypatch: Any) -> None:
     import core.data_collector.stock.daily_quotes as dq
 
     monkeypatch.setattr(dq, "ak", type("AK", (), {})())
-    monkeypatch.setattr(dq.ak, "stock_zh_a_hist", lambda **kwargs: _make_hist_raw() if kwargs.get("adjust", "") == "" else _make_hist_qfq())
-    monkeypatch.setattr(dq.ak, "tool_trade_date_hist_df", _make_trade_cal)
+    monkeypatch.setattr(
+        dq.ak,
+        "stock_zh_a_hist",
+        lambda **kwargs: _make_hist_raw() if kwargs.get("adjust", "") == "" else _make_hist_qfq(),
+        raising=False,
+    )
+    monkeypatch.setattr(dq.ak, "tool_trade_date_hist_df", _make_trade_cal, raising=False)
 
     df = build_cn_stock_quotes_df("SH600519", start=date(2025, 9, 10), end=date(2025, 9, 11))
     assert not df.empty
