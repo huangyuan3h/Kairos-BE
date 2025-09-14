@@ -109,7 +109,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 results.append({"symbol": sym, "ingested": 0})
                 continue
             df = df.copy()
-            df["ingested_at"] = pd.Timestamp.utcnow().isoformat()
             count = stocks.upsert_quotes_df(df)
             total_rows += count
             results.append({"symbol": sym, "ingested": count, "start": str(start), "end": str(today)})

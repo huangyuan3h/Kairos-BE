@@ -10,8 +10,14 @@ Output schema (per row):
 - open, high, low, close: float
 - adj_close: float | None
 - volume: int | None
-- currency: str | None (CNY for CN A-shares)
-- source: 'akshare'
+- limit_up: float | None
+- limit_down: float | None
+- is_suspended: bool | None
+- trading_status: str | None
+- turnover_amount: float | None
+- turnover_rate: float | None
+- vwap: float | None
+- adj_factor: float | None
 """
 from __future__ import annotations
 
@@ -51,7 +57,7 @@ def _fetch_cn_stock_daily_ak(symbol_ak: str, start: date, end: date) -> pd.DataF
     # Prefer stock_zh_a_daily which accepts sh/sz/bj prefix
     try:
         df = ak.stock_zh_a_daily(symbol=symbol_ak)
-        # Expected: columns include 'date', 'open', 'high', 'low', 'close', maybe 'volume'
+        # Expected: columns include 'date', 'open', 'high', 'low', 'close', maybe 'volume', may not include amount
     except Exception:
         # Fallback to hist API with best-effort normalization
         # Some Akshare versions expose: stock_zh_a_hist(symbol="600519", start_date="YYYYMMDD", end_date="YYYYMMDD")
@@ -69,6 +75,7 @@ def _fetch_cn_stock_daily_ak(symbol_ak: str, start: date, end: date) -> pd.DataF
             "最低": "low",
             "收盘": "close",
             "成交量": "volume",
+            "成交额": "turnover_amount",
         })
         if "date" in hist.columns and not pd.api.types.is_datetime64_any_dtype(hist["date"]):
             hist["date"] = pd.to_datetime(hist["date"], errors="coerce")
@@ -76,11 +83,37 @@ def _fetch_cn_stock_daily_ak(symbol_ak: str, start: date, end: date) -> pd.DataF
         hist["date"] = hist["date"].dt.date
         hist = hist[(hist["date"] >= start) & (hist["date"] <= end)].copy()
         hist["adj_close"] = pd.NA
-        hist["currency"] = "CNY"
-        return hist[["date", "open", "high", "low", "close", "adj_close", "volume", "currency"]]
+        # Compute vwap if possible
+        if "turnover_amount" in hist.columns and "volume" in hist.columns:
+            with pd.option_context("mode.use_inf_as_na", True):
+                hist["vwap"] = (pd.to_numeric(hist["turnover_amount"], errors="coerce") / pd.to_numeric(hist["volume"], errors="coerce")).replace([float("inf"), float("-inf")], pd.NA)
+        else:
+            hist["vwap"] = pd.NA
+
+        # Placeholders for fields not readily available from this endpoint
+        for c in [
+            "limit_up",
+            "limit_down",
+            "is_suspended",
+            "trading_status",
+            "turnover_rate",
+            "adj_factor",
+        ]:
+            if c not in hist.columns:
+                hist[c] = pd.NA
+
+        return hist[[
+            "date", "open", "high", "low", "close", "adj_close", "volume",
+            "turnover_amount", "turnover_rate", "vwap", "limit_up", "limit_down",
+            "is_suspended", "trading_status", "adj_factor",
+        ]]
 
     if df is None or df.empty:
-        return pd.DataFrame(columns=["date", "open", "high", "low", "close", "adj_close", "volume", "currency"])  # noqa: E501
+        return pd.DataFrame(columns=[
+            "date", "open", "high", "low", "close", "adj_close", "volume",
+            "turnover_amount", "turnover_rate", "vwap", "limit_up", "limit_down",
+            "is_suspended", "trading_status", "adj_factor",
+        ])
 
     out = df.copy()
     # Ensure 'date' column exists and is date
@@ -101,16 +134,32 @@ def _fetch_cn_stock_daily_ak(symbol_ak: str, start: date, end: date) -> pd.DataF
     if "volume" not in out.columns:
         out["volume"] = pd.NA
 
+    # Optional fields normalization
+    if "turnover_amount" not in out.columns:
+        out["turnover_amount"] = pd.NA
+    if "turnover_rate" not in out.columns:
+        out["turnover_rate"] = pd.NA
+    if "vwap" not in out.columns:
+        out["vwap"] = pd.NA
+    for c in ["limit_up", "limit_down", "is_suspended", "trading_status", "adj_factor"]:
+        if c not in out.columns:
+            out[c] = pd.NA
+
     out["adj_close"] = pd.NA
-    out["currency"] = "CNY"
-    return out[["date", "open", "high", "low", "close", "adj_close", "volume", "currency"]]
+    return out[[
+        "date", "open", "high", "low", "close", "adj_close", "volume",
+        "turnover_amount", "turnover_rate", "vwap", "limit_up", "limit_down",
+        "is_suspended", "trading_status", "adj_factor",
+    ]]
 
 
 def build_cn_stock_quotes_df(symbol: str, start: date, end: date) -> pd.DataFrame:
     """Fetch daily quotes for a CN A-share unified symbol and annotate.
 
     Returns DataFrame with columns:
-    symbol, date, open, high, low, close, adj_close, volume, currency, source
+    symbol, date, open, high, low, close, adj_close, volume,
+    turnover_amount, turnover_rate, vwap, limit_up, limit_down,
+    is_suspended, trading_status, adj_factor
     """
     ak_symbol = to_akshare_symbol(symbol)
     base = _fetch_cn_stock_daily_ak(ak_symbol, start=start, end=end)
@@ -118,7 +167,6 @@ def build_cn_stock_quotes_df(symbol: str, start: date, end: date) -> pd.DataFram
         return base
     base = base.copy()
     base.insert(0, "symbol", symbol)
-    base["source"] = "akshare"
     return base
 
 

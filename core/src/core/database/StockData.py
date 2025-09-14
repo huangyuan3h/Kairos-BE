@@ -93,12 +93,32 @@ class StockData:
             vol_v = _opt_int(row.get("volume"))
             if vol_v is not None:
                 item["volume"] = vol_v
-            curr = row.get("currency")
-            if curr is not None and not pd.isna(curr):
-                item["currency"] = str(curr)
-            src = row.get("source")
-            if src is not None and not pd.isna(src):
-                item["source"] = str(src)
+            # Optional market microstructure and status fields
+            amt_v = _opt_decimal(row.get("turnover_amount"))
+            if amt_v is not None:
+                item["turnover_amount"] = amt_v
+            rate_v = _opt_decimal(row.get("turnover_rate"))
+            if rate_v is not None:
+                item["turnover_rate"] = rate_v
+            vwap_v = _opt_decimal(row.get("vwap"))
+            if vwap_v is not None:
+                item["vwap"] = vwap_v
+            up_v = _opt_decimal(row.get("limit_up"))
+            if up_v is not None:
+                item["limit_up"] = up_v
+            down_v = _opt_decimal(row.get("limit_down"))
+            if down_v is not None:
+                item["limit_down"] = down_v
+            # Booleans/strings
+            susp = row.get("is_suspended")
+            if susp is not None and not pd.isna(susp):
+                item["is_suspended"] = bool(susp)
+            status = row.get("trading_status")
+            if status is not None and not pd.isna(status):
+                item["trading_status"] = str(status)
+            factor_v = _opt_decimal(row.get("adj_factor"))
+            if factor_v is not None:
+                item["adj_factor"] = factor_v
             items.append(item)
 
         try:
