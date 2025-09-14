@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 from datetime import date, timedelta
 from typing import Any, Dict, List
+import json
 
 import pandas as pd  # type: ignore[import]
 
@@ -47,7 +48,7 @@ def test_sync_market_data_counts(monkeypatch) -> None:
 
     os.environ["MARKET_DATA_TABLE"] = "Dummy"
     res = mod.handler({}, None)
-    body = pd.json.loads(res["body"]) if isinstance(res["body"], str) else res["body"]
+    body = json.loads(res["body"]) if isinstance(res["body"], str) else res["body"]
     assert res["statusCode"] == 200
     assert body["cn"] == 1 and body["us"] == 1 and body["index"] == 1 and body["total"] == 3
 
@@ -103,7 +104,7 @@ def test_sync_index_quotes_backfill_runs_on_closed_day(monkeypatch) -> None:
     os.environ["MARKET_DATA_TABLE"] = "Dummy"
     res = mod.handler({}, None)
     assert res["statusCode"] == 200
-    body = pd.json.loads(res["body"]) if isinstance(res["body"], str) else res["body"]
+    body = json.loads(res["body"]) if isinstance(res["body"], str) else res["body"]
     assert body["total_rows"] > 0  # backfill executed even on closed day
 
 
@@ -148,7 +149,7 @@ def test_sync_index_quotes_today_only_gated(monkeypatch) -> None:
     os.environ["MARKET_DATA_TABLE"] = "Dummy"
     res = mod.handler({}, None)
     assert res["statusCode"] == 200
-    body = pd.json.loads(res["body"]) if isinstance(res["body"], str) else res["body"]
+    body = json.loads(res["body"]) if isinstance(res["body"], str) else res["body"]
     # Expect skipped due to sentinel/non-trading for today-only fetch
     assert any(r.get("skipped") for r in body.get("results", []))
 

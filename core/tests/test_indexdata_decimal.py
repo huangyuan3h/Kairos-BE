@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
+import os
 from decimal import Decimal
 from typing import Any, Dict, List
 
@@ -50,6 +51,8 @@ def _make_df() -> pd.DataFrame:
 
 
 def test_indexdata_upsert_converts_floats_to_decimal(monkeypatch) -> None:
+    # Ensure boto3 has a region during construction
+    os.environ.setdefault("AWS_REGION", "us-east-1")
     svc = IndexData(table_name="Dummy", region=None)
     repo = _RepoStub()
     # Inject stub to avoid AWS calls
@@ -69,6 +72,7 @@ def test_indexdata_upsert_converts_floats_to_decimal(monkeypatch) -> None:
 
 
 def test_marketdata_upsert_quotes_decimal(monkeypatch) -> None:
+    os.environ.setdefault("AWS_REGION", "us-east-1")
     svc = MarketData(table_name="Dummy", region=None)
     repo = _RepoStub()
     svc._repo = repo  # type: ignore[attr-defined,assignment]
