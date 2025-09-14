@@ -1,4 +1,4 @@
-/// <reference path="../../.sst/platform/config.d.ts" />
+/// <reference path="../../../.sst/platform/config.d.ts" />
 
 export function createSyncIndexQuotesCron(database: { indexDataTable: any; marketDataTable: any }) {
   const syncIndexQuotes = new sst.aws.Cron("SyncIndexQuotes", {
