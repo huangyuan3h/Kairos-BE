@@ -56,13 +56,16 @@ export class MarketDataRepository {
         ":q": q,
       },
       ExpressionAttributeNames: { "#name": "name", "#symbol": "symbol" },
-      FilterExpression: "contains(#name, :q) OR contains(#symbol, :q)",
+      // Some items may not materialize 'symbol'; include pk/gsi1pk for fuzzy code match
+      FilterExpression:
+        "contains(#name, :q) OR contains(#symbol, :q) OR contains(pk, :q) OR contains(gsi1pk, :q)",
       ProjectionExpression:
-        "symbol, #name, exchange, asset_type, market, status",
+        "pk, gsi1pk, symbol, #name, exchange, asset_type, market, status",
       Limit: limit,
     });
     const out = await this.doc.send(cmd);
-    return (out.Items ?? []) as CatalogItem[];
+    const items = (out.Items ?? []).map(it => this.ensureSymbol(it));
+    return items as unknown as CatalogItem[];
   }
 
   /**
@@ -83,18 +86,19 @@ export class MarketDataRepository {
     while (collected.length < limit) {
       const cmd: ScanCommand = new ScanCommand({
         TableName: this.table,
+        // Include pk/gsi1pk in fuzzy to handle items without materialized 'symbol'
         FilterExpression:
-          "begins_with(sk, :sk) AND (contains(#name, :q) OR contains(#symbol, :q))",
+          "begins_with(sk, :sk) AND (contains(#name, :q) OR contains(#symbol, :q) OR contains(pk, :q) OR contains(gsi1pk, :q))",
         ExpressionAttributeValues: { ":sk": "META#CATALOG", ":q": q },
         ExpressionAttributeNames: { "#name": "name", "#symbol": "symbol" },
         ProjectionExpression:
-          "symbol, #name, exchange, asset_type, market, status",
+          "pk, gsi1pk, symbol, #name, exchange, asset_type, market, status",
         Limit: pageSize,
         ExclusiveStartKey: lastKey as any,
       });
       const out = (await this.doc.send(cmd as any)) as ScanCommandOutput;
-      const items = (out.Items ?? []) as unknown as CatalogItem[];
-      for (const it of items) {
+      const items = (out.Items ?? []).map(it => this.ensureSymbol(it));
+      for (const it of items as unknown as CatalogItem[]) {
         collected.push(it);
         if (collected.length >= limit) break;
       }
@@ -102,5 +106,26 @@ export class MarketDataRepository {
       if (!lastKey) break;
     }
     return collected;
+  }
+
+  /**
+   * Ensure 'symbol' exists by deriving it from keys when missing.
+   */
+  private ensureSymbol(item: Record<string, unknown>): Record<string, unknown> {
+    if (item && typeof item === "object" && !("symbol" in item)) {
+      const derived = this.deriveFromKey(
+        item["gsi1pk"] as string | undefined,
+        item["pk"] as string | undefined
+      );
+      if (derived) return { ...item, symbol: derived };
+    }
+    return item;
+  }
+
+  private deriveFromKey(gsi1pk?: string, pk?: string): string | undefined {
+    const s = gsi1pk || pk;
+    if (!s) return undefined;
+    const pos = s.indexOf("#");
+    return pos >= 0 && pos + 1 < s.length ? s.slice(pos + 1) : undefined;
   }
 }
