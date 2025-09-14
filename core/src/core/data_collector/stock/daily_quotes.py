@@ -146,6 +146,33 @@ def _fetch_cn_stock_daily_ak(symbol_ak: str, start: date, end: date) -> pd.DataF
             out[c] = pd.NA
 
     out["adj_close"] = pd.NA
+
+    # Enrich from hist endpoint to reduce NA for turnover_amount/turnover_rate/vwap
+    try:
+        code = symbol_ak[-6:]
+        start_s = start.strftime("%Y%m%d")
+        end_s = end.strftime("%Y%m%d")
+        hist = ak.stock_zh_a_hist(symbol=code, start_date=start_s, end_date=end_s, adjust="")
+        if hist is not None and not hist.empty:
+            hist = hist.rename(columns={
+                "日期": "date",
+                "成交额": "turnover_amount",
+                "换手率": "turnover_rate",
+            })
+            if "date" in hist.columns and not pd.api.types.is_datetime64_any_dtype(hist["date"]):
+                hist["date"] = pd.to_datetime(hist["date"], errors="coerce")
+            hist = hist.dropna(subset=["date"]).copy()
+            hist["date"] = hist["date"].dt.date
+            hist = hist[[c for c in ["date", "turnover_amount", "turnover_rate"] if c in hist.columns]].copy()
+            out = out.merge(hist, on="date", how="left", suffixes=("", "_h"))
+            # Recompute vwap if now possible
+            if "turnover_amount" in out.columns and "volume" in out.columns:
+                with pd.option_context("mode.use_inf_as_na", True):
+                    out["vwap"] = (pd.to_numeric(out["turnover_amount"], errors="coerce") / pd.to_numeric(out["volume"], errors="coerce")).replace([float("inf"), float("-inf")], pd.NA)
+    except Exception:
+        # Best-effort enrichment; ignore failures to keep core path robust
+        pass
+
     return out[[
         "date", "open", "high", "low", "close", "adj_close", "volume",
         "turnover_amount", "turnover_rate", "vwap", "limit_up", "limit_down",
