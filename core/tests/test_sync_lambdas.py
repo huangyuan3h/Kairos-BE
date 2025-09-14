@@ -4,6 +4,8 @@ import os
 from datetime import date, timedelta
 from typing import Any, Dict, List
 import json
+import importlib.util
+from pathlib import Path
 
 import pandas as pd  # type: ignore[import]
 
@@ -14,8 +16,20 @@ def _df_catalog(rows: List[Dict[str, Any]]) -> pd.DataFrame:
     ]
 
 
+def _load_module_from_repo(rel_path: str, name: str):
+    # tests are under core/tests → go to repo root
+    test_dir = Path(__file__).resolve().parent
+    repo_root = (test_dir / ".." / "..").resolve()
+    target = repo_root / rel_path
+    spec = importlib.util.spec_from_file_location(name, str(target))
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)  # type: ignore[attr-defined]
+    return mod
+
+
 def test_sync_market_data_counts(monkeypatch) -> None:
-    from functions.python import sync_market_data as mod
+    mod = _load_module_from_repo("functions/python/sync_market_data.py", "sync_market_data_mod")
 
     class FakeMarketData:
         def __init__(self, table_name: str, region: str | None) -> None:
@@ -54,7 +68,7 @@ def test_sync_market_data_counts(monkeypatch) -> None:
 
 
 def test_sync_index_quotes_backfill_runs_on_closed_day(monkeypatch) -> None:
-    from functions.python import sync_index_quotes as mod
+    mod = _load_module_from_repo("functions/python/sync_index_quotes.py", "sync_index_quotes_mod_1")
 
     class FakeIndexData:
         def __init__(self, table_name: str, region: str | None) -> None:
@@ -109,7 +123,7 @@ def test_sync_index_quotes_backfill_runs_on_closed_day(monkeypatch) -> None:
 
 
 def test_sync_index_quotes_today_only_gated(monkeypatch) -> None:
-    from functions.python import sync_index_quotes as mod
+    mod = _load_module_from_repo("functions/python/sync_index_quotes.py", "sync_index_quotes_mod_2")
 
     class FakeIndexData:
         def __init__(self, table_name: str, region: str | None) -> None:
