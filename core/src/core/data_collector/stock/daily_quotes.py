@@ -24,6 +24,8 @@ import pandas as pd  # type: ignore[import]
 import numpy as np  # type: ignore[import]
 # pyright: reportMissingTypeStubs=false, reportMissingImports=false
 import akshare as ak  # type: ignore[import]
+import time
+import random
 
 
 def to_akshare_symbol(cn_symbol: str) -> str:
@@ -62,7 +64,27 @@ def _fetch_cn_stock_daily_ak(symbol_unified: str, start: date, end: date) -> pd.
     end_s = end.strftime("%Y%m%d")
 
     # 1) Raw (no adjust)
-    df_raw = ak.stock_zh_a_hist(symbol=code, period="daily", start_date=start_s, end_date=end_s, adjust="")
+    def _call_hist(adjust: str):
+        return ak.stock_zh_a_hist(symbol=code, period="daily", start_date=start_s, end_date=end_s, adjust=adjust)
+
+    # Simple retry with backoff + jitter
+    def _retry_call(fn, *args, **kwargs):
+        max_attempts = 3
+        base = 0.25
+        for attempt in range(1, max_attempts + 1):
+            try:
+                return fn(*args, **kwargs)
+            except Exception:  # Best-effort; upstream can vary
+                if attempt == max_attempts:
+                    raise
+                sleep_s = base * (2 ** (attempt - 1)) + random.uniform(0, base)
+                time.sleep(sleep_s)
+
+    df_raw = None
+    try:
+        df_raw = _retry_call(_call_hist, "")
+    except Exception:
+        df_raw = None
     if df_raw is None or df_raw.empty:
         return pd.DataFrame(columns=[
             "date", "open", "high", "low", "close", "adj_close", "volume",
@@ -71,7 +93,10 @@ def _fetch_cn_stock_daily_ak(symbol_unified: str, start: date, end: date) -> pd.
         ])
 
     # 2) QFQ for adj_close
-    df_qfq = ak.stock_zh_a_hist(symbol=code, period="daily", start_date=start_s, end_date=end_s, adjust="qfq")
+    try:
+        df_qfq = _retry_call(_call_hist, "qfq")
+    except Exception:
+        df_qfq = None
     if df_qfq is None or df_qfq.empty:
         df_qfq = df_raw[["日期", "收盘"]].rename(columns={"收盘": "收盘_qfq"}).copy()
     else:

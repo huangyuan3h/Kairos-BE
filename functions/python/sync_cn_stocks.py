@@ -24,6 +24,9 @@ import os
 from datetime import date, timedelta
 from typing import Any, Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import hashlib
+import random
+import time
 
 import pandas as pd  # type: ignore[import]
 
@@ -69,6 +72,9 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         backfill_days = int(os.getenv("BACKFILL_DAYS", "5"))
         full_backfill_years = int(os.getenv("FULL_BACKFILL_YEARS", "3"))
         max_concurrency = int(os.getenv("MAX_CONCURRENCY", "16"))
+        shard_total = int(os.getenv("SHARD_TOTAL", "1"))
+        shard_index = int(os.getenv("SHARD_INDEX", "0"))
+        enforce_trading_day = os.getenv("ENFORCE_TRADING_DAY", "true").lower() != "false"
 
         stocks = StockData(table_name=stock_table, region=region)
         catalog = MarketData(table_name=market_table, region=region)
@@ -85,14 +91,21 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         symbols: List[str] = (
             cat_df["symbol"].astype(str).dropna().drop_duplicates().tolist() if not cat_df.empty else []
         )
+        # Optional sharding by stable hash
+        if shard_total > 1:
+            def _shard_ok(sym: str) -> bool:
+                h = int(hashlib.md5(sym.encode("utf-8")).hexdigest(), 16)
+                return (h % shard_total) == shard_index
+            symbols = [s for s in symbols if _shard_ok(s)]
+
         if not symbols:
-            logger.info("No CN A-share symbols available; nothing to ingest")
+            logger.info("No CN A-share symbols available after sharding; nothing to ingest")
             return {"statusCode": 200, "body": json.dumps({"total_rows": 0, "results": [], "skipped": True})}
 
         today = _today()
-        if not is_trading_day("CN", today):
+        if enforce_trading_day and not is_trading_day("CN", today):
             logger.info("%s is not a CN trading day; skipping run", today)
-            return {"statusCode": 200, "body": json.dumps({"total_rows": 0, "results": [], "skipped": True, "reason": "non-trading"})}  # noqa: E501
+            return {"statusCode": 200, "body": json.dumps({"total_rows": 0, "results": [], "skipped": True, "reason": "non-trading"})}
 
         # Determine latest trading day and build plans only if behind
         last_td = last_trading_day("CN", today)
@@ -110,6 +123,8 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         def _process(sym: str, start: date) -> Dict[str, Any]:
             try:
+                # Small jitter to avoid thundering herd on upstream
+                time.sleep(random.uniform(0.05, 0.25))
                 df_local = build_cn_stock_quotes_df(sym, start=start, end=today)
                 if df_local is None or df_local.empty:
                     return {"symbol": sym, "ingested": 0}
