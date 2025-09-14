@@ -69,11 +69,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         stock_table = os.getenv("STOCK_DATA_TABLE", "StockData")
         market_table = os.getenv("MARKET_DATA_TABLE", "MarketData")
         region = os.getenv("AWS_REGION")
-        backfill_days = int(os.getenv("BACKFILL_DAYS", "5"))
         full_backfill_years = int(os.getenv("FULL_BACKFILL_YEARS", "3"))
         max_concurrency = int(os.getenv("MAX_CONCURRENCY", "16"))
         shard_total = int(os.getenv("SHARD_TOTAL", "1"))
         shard_index = int(os.getenv("SHARD_INDEX", "0"))
+        catch_up_max_days = int(os.getenv("CATCH_UP_MAX_DAYS", "60")) if os.getenv("CATCH_UP_MAX_DAYS") else None
+        catch_up_max_years = int(os.getenv("CATCH_UP_MAX_YEARS", "0")) if os.getenv("CATCH_UP_MAX_YEARS") else None
 
         stocks = StockData(table_name=stock_table, region=region)
         catalog = MarketData(table_name=market_table, region=region)
@@ -111,9 +112,10 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             get_latest_quote_date=stocks.get_latest_quote_date,
             last_trading_day=last_td,
             today=today,
-            window_days=backfill_days,
             full_backfill_years=full_backfill_years,
             initial_only=not is_td,
+            catch_up_max_days=catch_up_max_days,
+            catch_up_max_years=catch_up_max_years,
         )
 
         total_rows = 0

@@ -27,8 +27,8 @@ export function createIngestCnStocksCrons(
           SHARD_INDEX: String(i),
           // Tuning knobs
           MAX_CONCURRENCY: "6",
-          BACKFILL_DAYS: "5",
           FULL_BACKFILL_YEARS: "3",
+          CATCH_UP_MAX_DAYS: "60",
         },
       },
     });
