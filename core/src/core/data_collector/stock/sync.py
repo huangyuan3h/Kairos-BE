@@ -28,8 +28,6 @@ def compute_backfill_start(
     today: date,
     latest_iso: Optional[str],
     full_backfill_years: int = 0,
-    catch_up_max_days: Optional[int] = None,
-    catch_up_max_years: Optional[int] = None,
 ) -> date:
     if latest_iso is None:
         # Initial load: prefer full backfill years if configured, else today (no-op)
@@ -38,17 +36,7 @@ def compute_backfill_start(
         return today
     y, m, d = latest_iso.split("-")
     latest_d = date(int(y), int(m), int(d))
-    start = latest_d + timedelta(days=1)
-    # Apply optional cap to avoid excessive catch-up in a single run
-    caps: List[date] = []
-    if catch_up_max_days and catch_up_max_days > 0:
-        caps.append(today - timedelta(days=catch_up_max_days))
-    if catch_up_max_years and catch_up_max_years > 0:
-        caps.append(_subtract_years(today, catch_up_max_years))
-    if caps:
-        cap_date = max(caps)  # choose the more recent cap
-        start = max(start, cap_date)
-    return start
+    return latest_d + timedelta(days=1)
 
 
 def build_cn_sync_plans(
@@ -58,8 +46,6 @@ def build_cn_sync_plans(
     today: date,
     full_backfill_years: int = 0,
     initial_only: bool = False,
-    catch_up_max_days: Optional[int] = None,
-    catch_up_max_years: Optional[int] = None,
 ) -> List[SyncPlan]:
     plans: List[SyncPlan] = []
     for sym in symbols:
@@ -76,13 +62,7 @@ def build_cn_sync_plans(
             except Exception:
                 # If parsing fails, treat as missing and allow backfill
                 pass
-        start = compute_backfill_start(
-            today,
-            latest,
-            full_backfill_years=full_backfill_years,
-            catch_up_max_days=catch_up_max_days,
-            catch_up_max_years=catch_up_max_years,
-        )
+        start = compute_backfill_start(today, latest, full_backfill_years=full_backfill_years)
         if start <= today:
             plans.append({"symbol": sym, "start": start})
     return plans

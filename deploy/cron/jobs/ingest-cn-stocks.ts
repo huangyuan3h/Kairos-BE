@@ -28,7 +28,6 @@ export function createIngestCnStocksCrons(
           // Tuning knobs
           MAX_CONCURRENCY: "6",
           FULL_BACKFILL_YEARS: "3",
-          CATCH_UP_MAX_DAYS: "60",
         },
       },
     });

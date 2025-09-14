@@ -102,7 +102,7 @@ def test_build_cn_sync_plans_initial_only_includes_new() -> None:
         assert (today - p["start"]).days >= 365 * 3 - 2
 
 
-def test_build_cn_sync_plans_catch_up_cap_days() -> None:
+def test_build_cn_sync_plans_catch_up_latest_plus_one() -> None:
     today = date(2025, 9, 14)
     last_td = date(2025, 9, 12)
     symbols = ["SH600519"]
@@ -116,10 +116,9 @@ def test_build_cn_sync_plans_catch_up_cap_days() -> None:
         last_trading_day=last_td,
         today=today,
         full_backfill_years=0,
-        catch_up_max_days=5,
     )
     assert len(plans) == 1
-    # start should be capped at today-5 rather than latest+1
-    assert plans[0]["start"] == date(2025, 9, 9)
+    # start should be latest+1
+    assert plans[0]["start"] == date(2024, 1, 2)
 
 

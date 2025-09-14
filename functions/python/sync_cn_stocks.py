@@ -73,8 +73,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         max_concurrency = int(os.getenv("MAX_CONCURRENCY", "16"))
         shard_total = int(os.getenv("SHARD_TOTAL", "1"))
         shard_index = int(os.getenv("SHARD_INDEX", "0"))
-        catch_up_max_days = int(os.getenv("CATCH_UP_MAX_DAYS", "60")) if os.getenv("CATCH_UP_MAX_DAYS") else None
-        catch_up_max_years = int(os.getenv("CATCH_UP_MAX_YEARS", "0")) if os.getenv("CATCH_UP_MAX_YEARS") else None
 
         stocks = StockData(table_name=stock_table, region=region)
         catalog = MarketData(table_name=market_table, region=region)
@@ -114,8 +112,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             today=today,
             full_backfill_years=full_backfill_years,
             initial_only=not is_td,
-            catch_up_max_days=catch_up_max_days,
-            catch_up_max_years=catch_up_max_years,
         )
 
         total_rows = 0
