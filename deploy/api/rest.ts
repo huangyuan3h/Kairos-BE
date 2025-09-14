@@ -7,7 +7,7 @@
 declare const sst: any;
 export function createRestApi(
   linkables: { linkableValue: any },
-  database: { reportsTable: any; marketDataTable?: any },
+  database: { reportsTable: any; marketDataTable?: any; indexDataTable?: any; stockDataTable?: any },
   options?: { isProduction?: boolean; stage?: string }
 ) {
   // Main REST API gateway
@@ -71,6 +71,25 @@ export function createRestApi(
       link: [database.marketDataTable],
       environment: {
         MARKET_DATA_TABLE: database.marketDataTable.name,
+      },
+    });
+  }
+
+  // Time series query for a code within a date window (default last 120 days)
+  // Query params:
+  // - code: string (required)
+  // - asset: optional ("index" | "stock"); if omitted, handler will try index then stock
+  // - from: optional (YYYY-MM-DD)
+  // - to: optional (YYYY-MM-DD)
+  // - days: optional number; used when from/to not provided; default 120
+  if (database.indexDataTable && database.stockDataTable) {
+    api.route("GET /timeseries", {
+      handler: "functions/nodejs/get_timeseries.handler",
+      runtime: "nodejs20.x",
+      link: [database.indexDataTable, database.stockDataTable],
+      environment: {
+        INDEX_DATA_TABLE: database.indexDataTable.name,
+        STOCK_DATA_TABLE: database.stockDataTable.name,
       },
     });
   }
