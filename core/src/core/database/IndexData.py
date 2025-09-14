@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+from decimal import Decimal
 
 import pandas as pd  # type: ignore[import]
 
@@ -40,12 +41,14 @@ class IndexData:
         records: List[Dict[str, Any]] = normalized.to_dict(orient="records")
         items: List[Dict[str, Any]] = []
 
-        def _opt_float(v: Any) -> Optional[float]:
+        def _opt_decimal(v: Any) -> Optional[Decimal]:
             try:
                 if v is None:
                     return None
-                f = float(v)
-                return None if pd.isna(f) else f
+                if pd.isna(v):
+                    return None
+                # Convert via string to avoid binary float issues
+                return Decimal(str(v))
             except Exception:
                 return None
 
@@ -72,15 +75,32 @@ class IndexData:
                 "gsi1sk": gsi1sk,
                 "symbol": symbol,
                 "date": getattr(d, "isoformat", lambda: str(d))(),
-                "open": _opt_float(row.get("open")),
-                "high": _opt_float(row.get("high")),
-                "low": _opt_float(row.get("low")),
-                "close": _opt_float(row.get("close")),
-                "adj_close": _opt_float(row.get("adj_close")),
-                "volume": _opt_int(row.get("volume")),
-                "currency": None if pd.isna(row.get("currency")) else str(row.get("currency")),
-                "source": None if pd.isna(row.get("source")) else str(row.get("source")),
             }
+            # Set optional attributes only when present (DynamoDB does not allow None)
+            open_v = _opt_decimal(row.get("open"))
+            if open_v is not None:
+                item["open"] = open_v
+            high_v = _opt_decimal(row.get("high"))
+            if high_v is not None:
+                item["high"] = high_v
+            low_v = _opt_decimal(row.get("low"))
+            if low_v is not None:
+                item["low"] = low_v
+            close_v = _opt_decimal(row.get("close"))
+            if close_v is not None:
+                item["close"] = close_v
+            adj_v = _opt_decimal(row.get("adj_close"))
+            if adj_v is not None:
+                item["adj_close"] = adj_v
+            vol_v = _opt_int(row.get("volume"))
+            if vol_v is not None:
+                item["volume"] = vol_v
+            curr = row.get("currency")
+            if curr is not None and not pd.isna(curr):
+                item["currency"] = str(curr)
+            src = row.get("source")
+            if src is not None and not pd.isna(src):
+                item["source"] = str(src)
             items.append(item)
 
         try:
