@@ -114,38 +114,46 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         today = _today()
         default_start = _three_years_ago(today)
 
-        # Global trading day gating: if none of the involved markets trade today, skip
-        involved_markets = {infer_market_from_symbol(s) or "US" for s in symbols}
-        if not any(is_trading_day(m, today) for m in involved_markets):
-            logger.info("No involved markets are trading on %s; skipping run", today)
-            return {"statusCode": 200, "body": json.dumps({"total_rows": 0, "results": [], "skipped": True, "reason": "non-trading day"})}
+        # Build per-symbol plan first (to detect backfill needs before gating)
+        plans: List[Dict[str, Any]] = []
+        for symbol in symbols:
+            market = infer_market_from_symbol(symbol) or "US"
+            latest = idx_service.get_latest_quote_date(symbol)
+            start = default_start if latest is None else max(default_start, _next_day(latest))
+            plans.append({"symbol": symbol, "market": market, "latest": latest, "start": start})
 
-        # Sentinel gating per market: for markets that are trading today, only proceed
-        # if at least one sentinel has today's data; otherwise skip that market entirely.
-        markets_to_skip: set[str] = set()
+        # If no symbol needs fetch (all start > today) and all involved markets are closed, skip
+        involved_markets = {p["market"] for p in plans}
+        needs_fetch_any = any(p["start"] <= today for p in plans)
+        if not needs_fetch_any and not any(is_trading_day(m, today) for m in involved_markets):
+            logger.info("No gaps and all markets closed on %s; skipping run", today)
+            return {"statusCode": 200, "body": json.dumps({"total_rows": 0, "results": [], "skipped": True, "reason": "no gaps & non-trading"})}
+
+        # Sentinel gating per market applies only when a symbol's start == today (i.e., fetching today's bar only)
+        markets_to_sentinel_skip: set[str] = set()
         for m in involved_markets:
             if not is_trading_day(m, today):
-                markets_to_skip.add(m)
+                markets_to_sentinel_skip.add(m)
                 continue
             if not _any_sentinel_has_today(m, today):
-                markets_to_skip.add(m)
-                logger.info("Market %s has no sentinel data for %s; skipping this market", m, today)
+                markets_to_sentinel_skip.add(m)
+                logger.info("Market %s has no sentinel data for %s; will skip symbols fetching only today", m, today)
 
         total_rows = 0
         results: List[Dict[str, Any]] = []
 
-        for symbol in symbols:
-            market = infer_market_from_symbol(symbol) or "US"
-            if market in markets_to_skip:
-                logger.info("%s market=%s gated; skipping symbol", symbol, market)
-                results.append({"symbol": symbol, "ingested": 0, "skipped": True, "reason": "non-trading day"})
-                continue
-
-            latest = idx_service.get_latest_quote_date(symbol)
-            start = default_start if latest is None else max(default_start, _next_day(latest))
+        for plan in plans:
+            symbol = plan["symbol"]
+            market = plan["market"]
+            start = plan["start"]
             if start > today:
                 logger.info("%s up-to-date; no fetch needed", symbol)
                 results.append({"symbol": symbol, "ingested": 0, "skipped": True})
+                continue
+            # If this symbol only needs today's bar and market is sentinel-gated, skip.
+            if start == today and market in markets_to_sentinel_skip:
+                logger.info("%s market=%s gated for today; skipping symbol", symbol, market)
+                results.append({"symbol": symbol, "ingested": 0, "skipped": True, "reason": "sentinel gating/non-trading"})
                 continue
 
             df = ensure_df(build_quotes_df(symbol, start=start, end=today))
