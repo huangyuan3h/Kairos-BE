@@ -71,8 +71,14 @@ export async function searchCatalog(
   }
 
   if (collected.length === 0) {
-    const scanned = await repo.scanCatalogFuzzy({ q, limit });
-    await add(scanned);
+    try {
+      const scanned = await repo.scanCatalogFuzzy({ q, limit });
+      await add(scanned);
+    } catch (err) {
+      // Last-resort path should never fail; if it does, return best-effort empty result
+      logger.error({ err }, "scanCatalogFuzzy failed; returning empty result");
+      return { count: collected.length, items: collected };
+    }
   }
 
   return { count: collected.length, items: collected };
