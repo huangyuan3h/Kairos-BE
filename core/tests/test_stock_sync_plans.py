@@ -62,3 +62,47 @@ def test_build_cn_sync_plans_generates_when_behind() -> None:
     assert all(p["start"] == date(2025, 9, 11) for p in plans)
 
 
+def test_build_cn_sync_plans_initial_only_skips_existing() -> None:
+    today = date(2025, 9, 14)
+    last_td = date(2025, 9, 12)
+    symbols = ["SH600519", "SZ000001"]
+
+    def _latest(_: str) -> Optional[str]:
+        return "2025-01-01"  # existing history
+
+    plans = build_cn_sync_plans(
+        symbols=symbols,
+        get_latest_quote_date=_latest,
+        last_trading_day=last_td,
+        today=today,
+        window_days=5,
+        full_backfill_years=3,
+        initial_only=True,
+    )
+    # initial_only=True should skip symbols that already have history
+    assert plans == []
+
+
+def test_build_cn_sync_plans_initial_only_includes_new() -> None:
+    today = date(2025, 9, 14)
+    last_td = date(2025, 9, 12)
+    symbols = ["SH600519", "SZ000001"]
+
+    def _latest(sym: str) -> Optional[str]:
+        return None  # no history for any symbol
+
+    plans = build_cn_sync_plans(
+        symbols=symbols,
+        get_latest_quote_date=_latest,
+        last_trading_day=last_td,
+        today=today,
+        window_days=5,
+        full_backfill_years=3,
+        initial_only=True,
+    )
+    assert len(plans) == 2
+    # Full backfill should start ~3 years ago
+    for p in plans:
+        assert (today - p["start"]).days >= 365 * 3 - 2
+
+
