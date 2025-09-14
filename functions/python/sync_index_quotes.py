@@ -20,18 +20,26 @@ import json
 import logging
 import os
 from datetime import date, timedelta
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional, List, Iterable
 
 import pandas as pd  # type: ignore[import]
 
 from core.data_collector.index.quotes import build_quotes_df, get_index_source_mapping
 from core.database import IndexData, MarketData
+from core.data_collector.calendar import is_trading_day, infer_market_from_symbol
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
 def _today() -> date:
+    as_of = os.getenv("AS_OF_DATE")
+    if as_of:
+        try:
+            y, m, d = as_of.split("-")
+            return date(int(y), int(m), int(d))
+        except Exception:
+            pass
     return date.today()
 
 
@@ -50,6 +58,28 @@ def _next_day(iso_date: str) -> date:
 
 def ensure_df(df: Optional[pd.DataFrame]) -> pd.DataFrame:
     return df if (df is not None) else pd.DataFrame()
+
+
+def _sentinels_for_market(market: str) -> List[str]:
+    m = market.strip().upper()
+    if m == "CN":
+        return ["CN:SHCOMP", "CN:CSI300"]
+    if m == "US":
+        return ["US:SPY", "US:SPX"]
+    return []
+
+
+def _any_sentinel_has_today(market: str, today: date) -> bool:
+    from core.data_collector.index.quotes import get_index_source_mapping  # lazy import to avoid cycles
+
+    mapping = get_index_source_mapping()
+    for sym in _sentinels_for_market(market):
+        if sym not in mapping:
+            continue
+        df = ensure_df(build_quotes_df(sym, start=today, end=today))
+        if not df.empty and df.get("date").astype(str).isin([today.isoformat()]).any():
+            return True
+    return False
 
 
 def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -84,10 +114,33 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         today = _today()
         default_start = _three_years_ago(today)
 
+        # Global trading day gating: if none of the involved markets trade today, skip
+        involved_markets = {infer_market_from_symbol(s) or "US" for s in symbols}
+        if not any(is_trading_day(m, today) for m in involved_markets):
+            logger.info("No involved markets are trading on %s; skipping run", today)
+            return {"statusCode": 200, "body": json.dumps({"total_rows": 0, "results": [], "skipped": True, "reason": "non-trading day"})}
+
+        # Sentinel gating per market: for markets that are trading today, only proceed
+        # if at least one sentinel has today's data; otherwise skip that market entirely.
+        markets_to_skip: set[str] = set()
+        for m in involved_markets:
+            if not is_trading_day(m, today):
+                markets_to_skip.add(m)
+                continue
+            if not _any_sentinel_has_today(m, today):
+                markets_to_skip.add(m)
+                logger.info("Market %s has no sentinel data for %s; skipping this market", m, today)
+
         total_rows = 0
         results: List[Dict[str, Any]] = []
 
         for symbol in symbols:
+            market = infer_market_from_symbol(symbol) or "US"
+            if market in markets_to_skip:
+                logger.info("%s market=%s gated; skipping symbol", symbol, market)
+                results.append({"symbol": symbol, "ingested": 0, "skipped": True, "reason": "non-trading day"})
+                continue
+
             latest = idx_service.get_latest_quote_date(symbol)
             start = default_start if latest is None else max(default_start, _next_day(latest))
             if start > today:
