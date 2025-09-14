@@ -48,10 +48,14 @@ def build_cn_sync_plans(
     today: date,
     window_days: int,
     full_backfill_years: int = 0,
+    initial_only: bool = False,
 ) -> List[SyncPlan]:
     plans: List[SyncPlan] = []
     for sym in symbols:
         latest = get_latest_quote_date(sym)
+        if initial_only and latest is not None:
+            # Only schedule symbols with no history at all
+            continue
         # If already up-to-date for the most recent trading day, skip
         if latest is not None:
             try:

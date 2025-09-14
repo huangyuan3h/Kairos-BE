@@ -74,7 +74,6 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         max_concurrency = int(os.getenv("MAX_CONCURRENCY", "16"))
         shard_total = int(os.getenv("SHARD_TOTAL", "1"))
         shard_index = int(os.getenv("SHARD_INDEX", "0"))
-        enforce_trading_day = os.getenv("ENFORCE_TRADING_DAY", "true").lower() != "false"
 
         stocks = StockData(table_name=stock_table, region=region)
         catalog = MarketData(table_name=market_table, region=region)
@@ -103,9 +102,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return {"statusCode": 200, "body": json.dumps({"total_rows": 0, "results": [], "skipped": True})}
 
         today = _today()
-        if enforce_trading_day and not is_trading_day("CN", today):
-            logger.info("%s is not a CN trading day; skipping run", today)
-            return {"statusCode": 200, "body": json.dumps({"total_rows": 0, "results": [], "skipped": True, "reason": "non-trading"})}
+        is_td = is_trading_day("CN", today)
 
         # Determine latest trading day and build plans only if behind
         last_td = last_trading_day("CN", today)
@@ -116,6 +113,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             today=today,
             window_days=backfill_days,
             full_backfill_years=full_backfill_years,
+            initial_only=not is_td,
         )
 
         total_rows = 0

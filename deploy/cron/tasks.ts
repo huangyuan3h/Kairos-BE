@@ -6,7 +6,7 @@
 import { getGeminiApiKey, getLangfuseSecrets } from "../secrets";
 import { createSyncMarketDataCron } from "./jobs/sync-market-data";
 import { createSyncIndexQuotesCron } from "./jobs/sync-index-quotes";
-import { createIngestCnStocksCron } from "./jobs/ingest-cn-stocks";
+import { createIngestCnStocksCrons } from "./jobs/ingest-cn-stocks";
 import { createOverallReportCron } from "./jobs/overall-report";
 
 export async function createCronJobs(
@@ -32,13 +32,13 @@ export async function createCronJobs(
 
   const syncIndexQuotes = createSyncIndexQuotesCron({ indexDataTable: database.indexDataTable, marketDataTable: database.marketDataTable });
 
-  // New: Ingest CN A-shares daily OHLCV at 16:10 China time (08:10 UTC)
-  const ingestCnStocks = createIngestCnStocksCron({ stockDataTable: database.stockDataTable, marketDataTable: database.marketDataTable });
+  // New: Sharded CN A-shares ingestion (default 10 shards) with minute-level staggering
+  const ingestCnStocksShards = createIngestCnStocksCrons({ stockDataTable: database.stockDataTable, marketDataTable: database.marketDataTable }, 10);
 
   return {
     syncMarketData,
     syncIndexQuotes,
-    ingestCnStocks,
+    ingestCnStocksShards,
     overallReport,
   };
 }
