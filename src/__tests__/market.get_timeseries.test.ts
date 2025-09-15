@@ -18,6 +18,10 @@ jest.mock("@src/market/db/timeseries_repository", () => {
       this.lastArgs = args;
       return nextResults[this.instanceIndex] ?? [];
     }
+    async queryLatestBySymbol(_args: any) {
+      // For tests that probe latest, return empty by default so fallback proceeds
+      return [];
+    }
   }
   return {
     TimeseriesRepository,
