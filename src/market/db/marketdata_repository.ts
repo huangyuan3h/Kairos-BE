@@ -55,12 +55,16 @@ export class MarketDataRepository {
         ":entity": "ENTITY#CATALOG",
         ":q": q,
       },
-      ExpressionAttributeNames: { "#name": "name", "#symbol": "symbol" },
+      ExpressionAttributeNames: {
+        "#name": "name",
+        "#symbol": "symbol",
+        "#status": "status",
+      },
       // Some items may not materialize 'symbol'; include pk/gsi1pk for fuzzy code match
       FilterExpression:
         "contains(#name, :q) OR contains(#symbol, :q) OR contains(pk, :q) OR contains(gsi1pk, :q)",
       ProjectionExpression:
-        "pk, gsi1pk, symbol, #name, exchange, asset_type, market, status",
+        "pk, gsi1pk, symbol, #name, exchange, asset_type, market, #status",
       Limit: limit,
     });
     const out = await this.doc.send(cmd);
@@ -90,9 +94,13 @@ export class MarketDataRepository {
         FilterExpression:
           "begins_with(sk, :sk) AND (contains(#name, :q) OR contains(#symbol, :q) OR contains(pk, :q) OR contains(gsi1pk, :q))",
         ExpressionAttributeValues: { ":sk": "META#CATALOG", ":q": q },
-        ExpressionAttributeNames: { "#name": "name", "#symbol": "symbol" },
+        ExpressionAttributeNames: {
+          "#name": "name",
+          "#symbol": "symbol",
+          "#status": "status",
+        },
         ProjectionExpression:
-          "pk, gsi1pk, symbol, #name, exchange, asset_type, market, status",
+          "pk, gsi1pk, symbol, #name, exchange, asset_type, market, #status",
         Limit: pageSize,
         ExclusiveStartKey: lastKey as any,
       });
