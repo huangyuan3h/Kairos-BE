@@ -8,6 +8,7 @@
  */
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { getLogger } from "@src/util/logger";
 
 export interface TimeseriesPoint {
   date: string;
@@ -27,6 +28,7 @@ export interface TimeseriesRepositoryOptions {
 export class TimeseriesRepository {
   private readonly table: string;
   private readonly doc: DynamoDBDocumentClient;
+  private readonly logger = getLogger("market/timeseries_repository");
 
   constructor(options: TimeseriesRepositoryOptions) {
     this.table = options.tableName;
@@ -45,6 +47,8 @@ export class TimeseriesRepository {
   }): Promise<TimeseriesPoint[]> {
     const { code, fromDate, toDate, limit } = params;
     const gsi1pk = `SYMBOL#${code}`;
+    const fromSk = this.buildGsi1Sk(fromDate);
+    const toSk = this.buildGsi1Sk(toDate);
 
     const cmd = new QueryCommand({
       TableName: this.table,
@@ -52,15 +56,55 @@ export class TimeseriesRepository {
       KeyConditionExpression: "gsi1pk = :pk AND gsi1sk BETWEEN :from AND :to",
       ExpressionAttributeValues: {
         ":pk": gsi1pk,
-        ":from": `DATE#${fromDate}`,
-        ":to": `DATE#${toDate}`,
+        ":from": fromSk,
+        ":to": toSk,
       },
       Limit: limit,
       ScanIndexForward: true,
     });
     const out = await this.doc.send(cmd);
     const items = out.Items ?? [];
-    return items.map(this.mapToPoint);
+    const points = items.map(this.mapToPoint);
+    this.logger.debug(
+      { table: this.table, code, fromDate, toDate, count: points.length },
+      "timeseries query result"
+    );
+    return points;
+  }
+
+  private buildGsi1Sk(date: string): string {
+    // Align with Python writer: gsi1sk = "ENTITY#QUOTE#YYYY-MM-DD"
+    return `ENTITY#QUOTE#${date}`;
+  }
+
+  /**
+   * Query latest N points for a symbol (descending by date).
+   */
+  async queryLatestBySymbol(params: {
+    code: string;
+    limit?: number;
+  }): Promise<TimeseriesPoint[]> {
+    const { code, limit } = params;
+    const gsi1pk = `SYMBOL#${code}`;
+    const cmd = new QueryCommand({
+      TableName: this.table,
+      IndexName: "bySymbol",
+      KeyConditionExpression: "gsi1pk = :pk AND begins_with(gsi1sk, :prefix)",
+      ExpressionAttributeValues: {
+        ":pk": gsi1pk,
+        ":prefix": "ENTITY#QUOTE",
+      },
+      Limit: limit ?? 1,
+      ScanIndexForward: false,
+    });
+    const out = await this.doc.send(cmd);
+    const items = out.Items ?? [];
+    const points = items.map(this.mapToPoint);
+    this.logger.debug(
+      { table: this.table, code, latestCount: points.length },
+      "timeseries latest query result"
+    );
+    return points;
   }
 
   private mapToPoint = (item: Record<string, unknown>): TimeseriesPoint => {

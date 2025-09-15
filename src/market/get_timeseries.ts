@@ -5,6 +5,7 @@ import {
   TimeseriesRepository,
   TimeseriesPoint,
 } from "./db/timeseries_repository";
+import { getLogger } from "@src/util/logger";
 
 export interface GetTimeseriesInput {
   code: string;
@@ -28,6 +29,7 @@ export interface GetTimeseriesOutput {
 export async function getTimeseries(
   input: GetTimeseriesInput
 ): Promise<GetTimeseriesOutput> {
+  const logger = getLogger("market/get_timeseries");
   const { code } = input;
   const { from, to } = resolveDateRange(
     input.from,
@@ -42,6 +44,10 @@ export async function getTimeseries(
       fromDate: from,
       toDate: to,
     });
+    logger.debug(
+      { asset: "index", code, from, to, count: points.length },
+      "timeseries business result"
+    );
     return { asset: "index", code, from, to, count: points.length, points };
   }
 
@@ -52,6 +58,10 @@ export async function getTimeseries(
       fromDate: from,
       toDate: to,
     });
+    logger.debug(
+      { asset: "stock", code, from, to, count: points.length },
+      "timeseries business result"
+    );
     return { asset: "stock", code, from, to, count: points.length, points };
   }
 
@@ -65,9 +75,18 @@ export async function getTimeseries(
       fromDate: from,
       toDate: to,
     });
+    logger.debug(
+      { asset: "index", code, from, to, count: points.length },
+      "timeseries autodetect index result"
+    );
     if (points.length > 0) {
       return { asset: "index", code, from, to, count: points.length, points };
     }
+    const latest = await indexRepo.queryLatestBySymbol({ code, limit: 1 });
+    logger.debug(
+      { asset: "index", code, latestCount: latest.length },
+      "timeseries autodetect index latest"
+    );
   }
 
   {
@@ -79,6 +98,10 @@ export async function getTimeseries(
       fromDate: from,
       toDate: to,
     });
+    logger.debug(
+      { asset: "stock", code, from, to, count: points.length },
+      "timeseries autodetect stock result"
+    );
     return { asset: "stock", code, from, to, count: points.length, points };
   }
 }
