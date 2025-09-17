@@ -1,11 +1,8 @@
-import {
-  GetSecretValueCommand,
-  SecretsManagerClient,
-} from "@aws-sdk/client-secrets-manager";
+import { GetParameterCommand, SSMClient } from "@aws-sdk/client-ssm";
 
 /**
  * Secrets utilities
- * Centralized helpers to read secrets from AWS Secrets Manager.
+ * Centralized helpers to read secrets from AWS SSM Parameter Store.
  *
  * Design considerations:
  * - Explicit, typed getters for each secret used by the app
@@ -19,53 +16,52 @@ type LangfuseSecrets = {
   LANGFUSE_HOST: string;
 };
 
-const client = new SecretsManagerClient({});
+const client = new SSMClient({});
 
 const secretCache: Record<string, unknown> = {};
 
-async function getSecretJson<TSecret extends object>(
-  secretId: string
+async function getParameterJson<TSecret extends object>(
+  name: string
 ): Promise<TSecret> {
-  if (secretCache[secretId]) {
-    return secretCache[secretId] as TSecret;
+  if (secretCache[name]) {
+    return secretCache[name] as TSecret;
   }
 
   const result = await client.send(
-    new GetSecretValueCommand({ SecretId: secretId })
+    new GetParameterCommand({ Name: name, WithDecryption: true })
   );
 
-  if (!result.SecretString) {
-    throw new Error(`Secret ${secretId} has no SecretString.`);
+  const value = result.Parameter?.Value;
+  if (!value) {
+    throw new Error(`SSM parameter ${name} has no value.`);
   }
 
   let parsed: unknown;
   try {
-    parsed = JSON.parse(result.SecretString);
+    parsed = JSON.parse(value);
   } catch (error) {
-    throw new Error(`Secret ${secretId} is not valid JSON.`);
+    throw new Error(`SSM parameter ${name} is not valid JSON.`);
   }
 
-  secretCache[secretId] = parsed as TSecret;
+  secretCache[name] = parsed as TSecret;
   return parsed as TSecret;
 }
 
 export async function getGeminiApiKey(): Promise<string> {
-  const data = await getSecretJson<{ GOOGLE_GENERATIVE_AI_API_KEY: string }>(
-    "prod/gemini"
+  const data = await getParameterJson<{ GOOGLE_GENERATIVE_AI_API_KEY: string }>(
+    "gemini"
   );
   if (!data.GOOGLE_GENERATIVE_AI_API_KEY) {
-    throw new Error(
-      "Missing GOOGLE_GENERATIVE_AI_API_KEY in prod/gemini secret"
-    );
+    throw new Error("Missing GOOGLE_GENERATIVE_AI_API_KEY in 'gemini' parameter");
   }
   return data.GOOGLE_GENERATIVE_AI_API_KEY;
 }
 
 export async function getLangfuseSecrets(): Promise<LangfuseSecrets> {
-  const data = await getSecretJson<LangfuseSecrets>("prod/langfuse");
+  const data = await getParameterJson<LangfuseSecrets>("langfuse");
   const { LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST } = data;
   if (!LANGFUSE_PUBLIC_KEY || !LANGFUSE_SECRET_KEY || !LANGFUSE_HOST) {
-    throw new Error("prod/langfuse secret missing required keys");
+    throw new Error("'langfuse' parameter missing required keys");
   }
   return { LANGFUSE_PUBLIC_KEY, LANGFUSE_SECRET_KEY, LANGFUSE_HOST };
 }

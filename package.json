@@ -45,6 +45,7 @@
     "@ai-sdk/openai": "^0.0.40",
     "@aws-sdk/client-dynamodb": "^3.624.0",
     "@aws-sdk/client-secrets-manager": "^3.879.0",
+    "@aws-sdk/client-ssm": "^3.890.0",
     "@aws-sdk/lib-dynamodb": "^3.624.0",
     "@google/generative-ai": "^0.24.1",
     "@langfuse/client": "^4.0.0",
@@ -57,9 +58,9 @@
     "aws-cdk-lib": "^2.208.0",
     "constructs": "^10.4.2",
     "dotenv": "^17.2.1",
-    "ts-node": "^10.9.2",
-    "zod": "^3.25.76",
     "pino": "^9.5.0",
-    "pino-pretty": "^11.2.2"
+    "pino-pretty": "^11.2.2",
+    "ts-node": "^10.9.2",
+    "zod": "^3.25.76"
   }
 }
