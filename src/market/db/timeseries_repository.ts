@@ -50,6 +50,9 @@ export class TimeseriesRepository {
     const fromSk = this.buildGsi1Sk(fromDate);
     const toSk = this.buildGsi1Sk(toDate);
 
+    // Compute a safe upper bound for items when caller didn't provide one.
+    // Using date range window size as a hint avoids over-fetching.
+    const inferredLimit = this.inferWindowLimit(fromDate, toDate);
     const cmd = new QueryCommand({
       TableName: this.table,
       IndexName: "bySymbol",
@@ -59,7 +62,9 @@ export class TimeseriesRepository {
         ":from": fromSk,
         ":to": toSk,
       },
-      Limit: limit,
+      ProjectionExpression:
+        "gsi1sk, date, as_of_date, open, high, low, close, adj_close, volume",
+      Limit: limit ?? inferredLimit,
       ScanIndexForward: true,
     });
     const out = await this.doc.send(cmd);
@@ -94,6 +99,8 @@ export class TimeseriesRepository {
         ":pk": gsi1pk,
         ":prefix": "ENTITY#QUOTE",
       },
+      ProjectionExpression:
+        "gsi1sk, date, as_of_date, open, high, low, close, adj_close, volume",
       Limit: limit ?? 1,
       ScanIndexForward: false,
     });
@@ -105,6 +112,21 @@ export class TimeseriesRepository {
       "timeseries latest query result"
     );
     return points;
+  }
+
+  private inferWindowLimit(from: string, to: string): number {
+    try {
+      const f = new Date(from + "T00:00:00Z");
+      const t = new Date(to + "T00:00:00Z");
+      const days = Math.max(
+        1,
+        Math.floor((t.getTime() - f.getTime()) / (24 * 3600 * 1000)) + 1
+      );
+      // Add small buffer for data anomalies while keeping a tight cap
+      return Math.min(days + 5, days * 2);
+    } catch {
+      return undefined as unknown as number; // Let SDK ignore undefined
+    }
   }
 
   private mapToPoint = (item: Record<string, unknown>): TimeseriesPoint => {
