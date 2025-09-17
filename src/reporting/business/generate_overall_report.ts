@@ -144,14 +144,6 @@ export async function generateOverallReport(): Promise<OverallReport> {
     "Local tools context prepared"
   );
 
-  // Initialize AI agent WITHOUT tools; pass compact context via prompt; force no-tool path
-  const aiAgent = createObjectAgentWithSchema({
-    model: "gemini-2.5-flash",
-    systemPrompt,
-    toolChoice: "none",
-    schema: reportSchema,
-  });
-
   logger.info("Starting report generation with local tools context");
 
   // Compose user prompt embedding context JSON
@@ -159,7 +151,88 @@ export async function generateOverallReport(): Promise<OverallReport> {
 
 上下文(JSON)：\n\n\u0060\u0060\u0060json\n${JSON.stringify(context)}\n\u0060\u0060\u0060`;
 
-  const response = await aiAgent.generate(userPrompt);
+  // Retry AI call to mitigate transient provider overloads (e.g., 429/503)
+  async function sleep(ms: number) {
+    await new Promise(resolve => globalThis.setTimeout(resolve, ms));
+  }
+
+  function isRetryableAiError(err: any): boolean {
+    const msg = err instanceof Error ? err.message : String(err ?? "");
+    const lower = msg.toLowerCase();
+    return (
+      lower.includes("overloaded") ||
+      lower.includes("rate limit") ||
+      lower.includes("429") ||
+      lower.includes("unavailable") ||
+      lower.includes("503") ||
+      lower.includes("deadline") ||
+      lower.includes("timeout")
+    );
+  }
+
+  async function retryGenerateWithModel(
+    agentFactory: (model: string) => any,
+    prompt: string
+  ) {
+    const maxAttempts = Math.max(1, Number(process.env.AI_MAX_ATTEMPTS || 6));
+    const baseDelayMs = Math.max(
+      250,
+      Number(process.env.AI_BASE_DELAY_MS || 2000)
+    );
+    const fallbacksRaw =
+      process.env.AI_MODEL_FALLBACKS ||
+      "gemini-2.5-flash,gemini-2.5-flash-lite,gemma-3-27b-it";
+    const models = fallbacksRaw
+      .split(",")
+      .map(s => s.trim())
+      .filter(Boolean);
+
+    let lastError: any;
+    for (const model of models) {
+      let attempt = 0;
+      const agent = agentFactory(model);
+      logger.info({ model }, "AI model selected");
+      while (true) {
+        attempt += 1;
+        try {
+          return await agent.generate(prompt);
+        } catch (err: any) {
+          lastError = err;
+          const retryable = isRetryableAiError(err);
+          const message = err instanceof Error ? err.message : String(err);
+          logger.warn(
+            { model, attempt, maxAttempts, retryable, message },
+            "AI call failed"
+          );
+          if (!retryable || attempt >= maxAttempts) {
+            logger.warn(
+              { model },
+              "Giving up current model and trying next fallback (if any)"
+            );
+            break;
+          }
+          const jitter = Math.floor(Math.random() * 400);
+          const delay = Math.min(
+            30000,
+            baseDelayMs * Math.pow(2, attempt - 1) + jitter
+          );
+          await sleep(delay);
+        }
+      }
+    }
+    throw lastError;
+  }
+
+  const response = await retryGenerateWithModel(
+    (model: string) =>
+      createObjectAgentWithSchema({
+        model,
+        systemPrompt,
+        toolChoice: "none",
+        schema: reportSchema,
+      }),
+    userPrompt
+  );
 
   logger.debug({ response }, "AI Agent response");
 
