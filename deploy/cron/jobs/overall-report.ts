@@ -22,6 +22,11 @@ export function createOverallReportCron(params: {
         LANGFUSE_PUBLIC_KEY: langfuse.LANGFUSE_PUBLIC_KEY,
         LANGFUSE_SECRET_KEY: langfuse.LANGFUSE_SECRET_KEY,
         LANGFUSE_BASE_URL: langfuse.LANGFUSE_HOST,
+        // AI call hardening knobs
+        AI_MAX_ATTEMPTS: "8",
+        AI_BASE_DELAY_MS: "3000",
+        AI_MODEL_FALLBACKS:
+          "gemini-2.5-flash,gemini-2.5-flash-lite,gemma-3-27b-it",
       },
     },
   });
