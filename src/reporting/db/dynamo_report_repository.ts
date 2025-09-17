@@ -73,6 +73,11 @@ export function createDynamoReportRepository(params: {
     async save(report: OverallReport): Promise<void> {
       const pk = `REPORT#OVERALL`;
       const sk = `DATE#${report.asOfDate}`;
+      // Optional TTL (Time To Live) for automatic expiration
+      // Controlled by env REPORT_TTL_DAYS (default 30). DynamoDB expects epoch seconds.
+      const ttlDays = 30;
+      const ttlEpochSeconds =
+        Math.floor(Date.now() / 1000) + ttlDays * 24 * 60 * 60;
       await doc.send(
         new PutCommand({
           TableName: tableName,
@@ -84,6 +89,7 @@ export function createDynamoReportRepository(params: {
             title: report.title,
             content: report.content,
             createdAt: report.createdAt,
+            ttl: ttlEpochSeconds,
           },
         })
       );
