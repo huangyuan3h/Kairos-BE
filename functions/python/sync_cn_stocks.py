@@ -33,7 +33,7 @@ import pandas as pd  # type: ignore[import]
 from core.data_collector.calendar import is_trading_day, last_trading_day
 from core.data_collector.stock.daily_quotes import build_cn_stock_quotes_df
 from core.data_collector.stock.sync import build_cn_sync_plans
-from core.data_collector.stock.cn_stock_catalog import get_cn_a_stock_catalog
+from core.data_collector.stock.cn_stock_catalog import get_cn_a_stock_catalog, to_canonical_symbol
 from core.database import MarketData, StockData
 
 
@@ -73,26 +73,43 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         max_concurrency = int(os.getenv("MAX_CONCURRENCY", "16"))
         shard_total = int(os.getenv("SHARD_TOTAL", "1"))
         shard_index = int(os.getenv("SHARD_INDEX", "0"))
+        allow_non_td_backfill = os.getenv("ALLOW_NON_TD_BACKFILL", "false").lower() in ("1", "true", "yes")
 
         stocks = StockData(table_name=stock_table, region=region)
         catalog = MarketData(table_name=market_table, region=region)
 
-        # Prefer catalog from MarketData
+        # Prefer catalog from MarketData, but also union with Akshare spot to avoid missing symbols
         cat_df = catalog.query_stock_catalog_df(
             asset_type="stock", market="CN_A", status="active", columns=["symbol"]
         )
-        if cat_df is None or cat_df.empty:
-            # Fallback to Akshare spot universe
+        spot = None
+        try:
             spot = get_cn_a_stock_catalog()
-            cat_df = spot[["symbol"]] if spot is not None else pd.DataFrame(columns=["symbol"])
+        except Exception:
+            spot = None
 
-        symbols: List[str] = (
-            cat_df["symbol"].astype(str).dropna().drop_duplicates().tolist() if not cat_df.empty else []
+        symbols_catalog: List[str] = (
+            cat_df["symbol"].astype(str).dropna().drop_duplicates().tolist() if cat_df is not None and not cat_df.empty else []
+        )
+        symbols_spot: List[str] = (
+            spot["symbol"].astype(str).dropna().drop_duplicates().tolist() if spot is not None and not spot.empty else []
+        )
+        # Canonicalize and union
+        normalized_union = {to_canonical_symbol(s.strip()) for s in (symbols_catalog + symbols_spot)}
+        symbols: List[str] = sorted(normalized_union)
+
+        logger.info(
+            "catalog_count=%s spot_count=%s union_count=%s",
+            len(symbols_catalog),
+            len(symbols_spot),
+            len(symbols),
         )
         # Optional sharding by stable hash
         if shard_total > 1:
             def _shard_ok(sym: str) -> bool:
-                h = int(hashlib.md5(sym.encode("utf-8")).hexdigest(), 16)
+                # Normalize to canonical uppercase before hashing for stable sharding
+                norm = str(sym).strip().upper()
+                h = int(hashlib.md5(norm.encode("utf-8")).hexdigest(), 16)
                 return (h % shard_total) == shard_index
             symbols = [s for s in symbols if _shard_ok(s)]
 
@@ -111,7 +128,17 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             last_trading_day=last_td,
             today=today,
             full_backfill_years=full_backfill_years,
-            initial_only=not is_td,
+            initial_only=(not is_td and not allow_non_td_backfill),
+        )
+
+        logger.info(
+            "today=%s is_trading_day=%s allow_non_td_backfill=%s shard_index=%s shard_total=%s planned=%s",
+            str(today),
+            is_td,
+            allow_non_td_backfill,
+            shard_index,
+            shard_total,
+            len(plans),
         )
 
         total_rows = 0
