@@ -19,6 +19,7 @@ from .exceptions import RepositoryError
 from .MarketData import MarketData
 from .IndexData import IndexData
 from .StockData import StockData
+from .Company import Company
 
 __all__ = [
     "DynamoConfig",
@@ -28,6 +29,7 @@ __all__ = [
     "MarketData",
     "IndexData",
     "StockData",
+    "Company",
     "make_pk_stock",
     "make_pk_index",
     "make_sk_meta",
