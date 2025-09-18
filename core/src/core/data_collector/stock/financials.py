@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, List, Optional
 
 import pandas as pd  # type: ignore
+import akshare as ak  # type: ignore
 import hashlib
 import random
 import time
@@ -48,18 +49,113 @@ def build_company_item(row: Any, default_score: float = 0.0) -> Dict[str, Any]:
     """
     symbol = str(row.get("symbol", "")).strip().upper()
     score = float(default_score)
-    return {
+    item: Dict[str, Any] = {
         "pk": symbol,
         "gsi1pk": "SCORE",
         "gsi1sk": f"{pad_score(score)}#{symbol}",
         "symbol": symbol,
         "name": row.get("name"),
-        "exchange": row.get("exchange"),
-        "market": row.get("market"),
-        "status": row.get("status"),
         "score": score,
-        "source": "catalog:MarketData",
     }
+    return item
+
+
+def to_code6(canonical_symbol: str) -> str:
+    s = str(canonical_symbol).strip().upper()
+    if len(s) >= 8 and (s.startswith("SH") or s.startswith("SZ") or s.startswith("BJ")):
+        return s[2:]
+    return s
+
+
+def _fetch_statement_df(code6: str, statement: str) -> Optional[pd.DataFrame]:
+    try:
+        df = ak.stock_financial_report_sina(stock=code6, symbol=statement)
+        if df is None or df.empty:
+            return None
+        # Normalize column names
+        df.columns = [str(c).strip() for c in df.columns]
+        return df
+    except Exception:
+        return None
+
+
+def _select_period_col(df: pd.DataFrame) -> Optional[str]:
+    for name in ["报告期", "截止日期", "日期", "报表期"]:
+        if name in df.columns:
+            return name
+    return None
+
+
+def _coerce_numeric_series(s: pd.Series) -> Optional[float]:
+    try:
+        v = pd.to_numeric(s, errors="coerce")
+        if pd.isna(v):
+            return None
+        return float(v)
+    except Exception:
+        return None
+
+
+def fetch_latest_financials_flat(symbol: str) -> Dict[str, Any]:
+    """Fetch latest rows from three statements and flatten numeric fields.
+
+    Keys are flattened with prefixes: inc_, bs_, cf_. Chinese column names are
+    preserved after the prefix to minimize mapping complexity.
+    """
+    code6 = to_code6(symbol)
+    result: Dict[str, Any] = {}
+    # Whitelists for quant-useful fields
+    # Minimal, high-coverage income statement fields
+    income_map: Dict[str, str] = {
+        "营业收入": "revenue",
+        "营业利润": "operating_income",
+        "利润总额": "pretax_income",
+        "净利润": "net_income",
+        "基本每股收益": "eps_basic",
+        "稀释每股收益": "eps_diluted",
+    }
+    # Minimal, high-coverage balance sheet fields
+    balance_map: Dict[str, str] = {
+        "资产总计": "total_assets",
+        "负债合计": "total_liabilities",
+        "所有者权益(或股东权益)合计": "total_equity",
+        "资本公积": "additional_paid_in_capital",
+        "盈余公积": "surplus_reserve",
+        "未分配利润": "retained_earnings",
+    }
+    # Minimal, high-coverage cash flow fields
+    cashflow_map: Dict[str, str] = {
+        "经营活动产生的现金流量净额": "net_cash_from_operating",
+        "投资活动产生的现金流量净额": "net_cash_from_investing",
+        "筹资活动产生的现金流量净额": "net_cash_from_financing",
+        "支付给职工以及为职工支付的现金": "cash_out_employees",
+        "支付的各项税费": "cash_out_taxes",
+        "期末现金及现金等价物余额": "ending_cash_and_equivalents",
+        "现金及现金等价物净增加额": "net_increase_in_cash",
+    }
+
+    for stmt, prefix, mapping in (
+        ("利润表", "inc_", income_map),
+        ("资产负债表", "bs_", balance_map),
+        ("现金流量表", "cf_", cashflow_map),
+    ):
+        df = _fetch_statement_df(code6, stmt)
+        if df is None or df.empty:
+            continue
+        period_col = _select_period_col(df)
+        latest = df.iloc[0] if period_col is None else df.sort_values(by=period_col, ascending=False).iloc[0]
+        for col in df.columns:
+            if col == period_col:
+                continue
+            eng = mapping.get(col)
+            if eng is None:
+                continue
+            val = _coerce_numeric_series(latest[col])
+            if val is None:
+                continue
+            key = f"{prefix}{eng}"
+            result[key] = val
+    return result
 
 
 def sync_companies_for_shard(
@@ -69,6 +165,7 @@ def sync_companies_for_shard(
     shard_total: int = 1,
     shard_index: int = 0,
     max_symbols: int = 0,
+    include_financials: bool = True,
 ) -> Dict[str, Any]:
     """Business orchestration: sync one-row-per-company for this shard.
 
@@ -101,6 +198,10 @@ def sync_companies_for_shard(
     for i, idx in enumerate(idx_map):
         try:
             item = build_company_item(cat_df.iloc[idx])
+            if include_financials:
+                metrics = fetch_latest_financials_flat(item["pk"])  # pk is canonical symbol
+                # Merge flattened financial fields into the same row
+                item.update(metrics)
             company_put(item)
             results.append({"symbol": item["symbol"], "ok": True})
         except Exception as e:  # noqa: BLE001
@@ -111,10 +212,12 @@ def sync_companies_for_shard(
     return {"companies_upserted": ok_count, "total_symbols": total, "results": results}
 
 __all__ = [
-    "to_akshare_code",
-    "derive_fiscal_from_date",
-    "fetch_statement_df",
-    "select_period_end_column",
+    "pad_score",
+    "shard_ok",
+    "rate_limit_pause",
+    "build_company_item",
+    "fetch_latest_financials_flat",
+    "sync_companies_for_shard",
 ]
 
 

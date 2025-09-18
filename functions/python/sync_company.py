@@ -59,6 +59,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             shard_total=shard_total,
             shard_index=shard_index,
             max_symbols=max_symbols,
+            include_financials=True,
         )
         return {"statusCode": 200, "body": json.dumps(outcome)}
     except Exception as exc:  # noqa: BLE001
