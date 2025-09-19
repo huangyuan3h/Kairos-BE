@@ -11,17 +11,15 @@ the scope minimal and cost-efficient for the current use-case.
 from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import logging
 
 import pandas as pd  # type: ignore
 import akshare as ak  # type: ignore
 import hashlib
 import random
 import time
-
-
- 
-
-
+logger = logging.getLogger(__name__)
 def pad_score(score: float) -> str:
     """Left-pad score for lexical ordering in GSI sort key."""
     # Use width=9 to ensure five digits before decimal for 0.000 -> "00000.000"
@@ -69,15 +67,30 @@ def to_code6(canonical_symbol: str) -> str:
 
 
 def _fetch_statement_df(code6: str, statement: str) -> Optional[pd.DataFrame]:
-    try:
-        df = ak.stock_financial_report_sina(stock=code6, symbol=statement)
-        if df is None or df.empty:
-            return None
-        # Normalize column names
-        df.columns = [str(c).strip() for c in df.columns]
-        return df
-    except Exception:
-        return None
+    """Fetch a single financial statement with minimal retries and backoff."""
+    max_attempts = 3
+    base_delay = 0.7
+    for attempt in range(1, max_attempts + 1):
+        try:
+            df = ak.stock_financial_report_sina(stock=code6, symbol=statement)
+            if df is None or df.empty:
+                raise RuntimeError("empty dataframe")
+            # Normalize column names
+            df.columns = [str(c).strip() for c in df.columns]
+            return df
+        except Exception as exc:  # noqa: BLE001
+            if attempt >= max_attempts:
+                logger.warning(
+                    "fetch_statement_failed: code6=%s stmt=%s attempt=%d error=%s",
+                    code6,
+                    statement,
+                    attempt,
+                    str(exc),
+                )
+                return None
+            delay = base_delay * (2 ** (attempt - 1)) + random.uniform(0.0, 0.4)
+            time.sleep(delay)
+    return None
 
 
 def _select_period_col(df: pd.DataFrame) -> Optional[str]:
@@ -166,6 +179,7 @@ def sync_companies_for_shard(
     shard_total: int = 1,
     shard_index: int = 0,
     max_symbols: int = 0,
+    max_concurrency: int = 1,
     include_financials: bool = True,
 ) -> Dict[str, Any]:
     """Business orchestration: sync one-row-per-company for this shard.
@@ -183,7 +197,7 @@ def sync_companies_for_shard(
     """
     cat_df: Optional[pd.DataFrame] = get_catalog_df()
     if cat_df is None or cat_df.empty:
-        return {"count": 0, "skipped": True, "results": []}
+        return {"companies_upserted": 0, "total_symbols": 0, "failed": 0, "skipped": True}
 
     symbols: List[str] = cat_df["symbol"].astype(str).dropna().drop_duplicates().tolist()
     if shard_total > 1:
@@ -193,24 +207,73 @@ def sync_companies_for_shard(
 
     results: List[Dict[str, Any]] = []
     total = len(symbols)
+    errors_sample: List[Dict[str, Any]] = []
+    ok_count = 0
 
     # Iterate over filtered subset by index positions for stable mapping
     idx_map = [i for i, s in enumerate(cat_df["symbol"].astype(str).tolist()) if s in set(symbols)]
-    for i, idx in enumerate(idx_map):
-        try:
-            item = build_company_item(cat_df.iloc[idx])
-            if include_financials:
-                metrics = fetch_latest_financials_flat(item["pk"])  # pk is canonical symbol
-                # Merge flattened financial fields into the same row
-                item.update(metrics)
-            company_put(item)
-            results.append({"symbol": item["symbol"], "ok": True})
-        except Exception as e:  # noqa: BLE001
-            results.append({"symbol": str(cat_df.iloc[idx].get("symbol")), "ok": False, "error": str(e)})
-        rate_limit_pause(i)
 
-    ok_count = sum(1 for r in results if r.get("ok"))
-    return {"companies_upserted": ok_count, "total_symbols": total, "results": results}
+    # Sequential path (default)
+    if max_concurrency is None or max_concurrency <= 1:
+        for i, idx in enumerate(idx_map):
+            try:
+                item = build_company_item(cat_df.iloc[idx])
+                if include_financials:
+                    metrics = fetch_latest_financials_flat(item["pk"])  # pk is canonical symbol
+                    # Merge flattened financial fields into the same row
+                    item.update(metrics)
+                company_put(item)
+                ok_count += 1
+            except Exception as e:  # noqa: BLE001
+                sym = str(cat_df.iloc[idx].get("symbol"))
+                logger.error("company_upsert_failed: symbol=%s error=%s", sym, str(e))
+                if len(errors_sample) < 10:
+                    errors_sample.append({"symbol": sym, "error": str(e)})
+            rate_limit_pause(i)
+    else:
+        # Concurrent path with bounded thread pool
+        max_workers = max(1, int(max_concurrency))
+
+        def _work(seq_and_idx: Any) -> Dict[str, Any]:
+            i, idx = seq_and_idx
+            try:
+                item = build_company_item(cat_df.iloc[idx])
+                if include_financials:
+                    metrics = fetch_latest_financials_flat(item["pk"])  # pk is canonical symbol
+                    item.update(metrics)
+                company_put(item)
+                return {"symbol": item["symbol"], "ok": True}
+            except Exception as e:  # noqa: BLE001
+                return {"symbol": str(cat_df.iloc[idx].get("symbol")), "ok": False, "error": str(e)}
+            finally:
+                # Preserve jitter even under concurrency to avoid upstream rate spikes
+                rate_limit_pause(i)
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(_work, pair) for pair in enumerate(idx_map)]
+            for fut in as_completed(futures):
+                try:
+                    res = fut.result()
+                    if res.get("ok"):
+                        ok_count += 1
+                    else:
+                        if len(errors_sample) < 10:
+                            errors_sample.append({"symbol": res.get("symbol"), "error": res.get("error")})
+                    results.append(res)
+                except Exception as e:  # noqa: BLE001
+                    # Should not happen as _work already catches, but guard anyway
+                    logger.error("company_upsert_failed: symbol=%s error=%s", "?", str(e))
+                    if len(errors_sample) < 10:
+                        errors_sample.append({"symbol": "?", "error": str(e)})
+                    results.append({"symbol": "?", "ok": False, "error": str(e)})
+
+    fail_count = len(idx_map) - ok_count
+    return {
+        "companies_upserted": ok_count,
+        "total_symbols": total,
+        "failed": fail_count,
+        "errors_sample": errors_sample,
+    }
 
 __all__ = [
     "pad_score",
