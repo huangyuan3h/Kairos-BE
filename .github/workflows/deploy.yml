@@ -19,6 +19,22 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
+      - name: Free disk space (pre)
+        shell: bash
+        run: |
+          echo "Before cleanup" && df -h || true
+          sudo swapoff -a || true
+          sudo rm -f /swapfile || true
+          sudo docker system prune -af --volumes || true
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo apt-get clean || true
+          pip cache purge || true
+          rm -rf ~/.cache || true
+          echo "After cleanup" && df -h || true
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -64,3 +80,11 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_DEFAULT_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_DEFAULT_ACCOUNT_ID }}
         run: bun sst deploy --stage $SST_STAGE | cat
+
+      - name: Cleanup (post)
+        if: always()
+        shell: bash
+        run: |
+          docker system prune -af --volumes || true
+          rm -rf ~/.cache || true
+          df -h || true
