@@ -41,6 +41,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         shard_total = int(os.getenv("SHARD_TOTAL", "1"))
         shard_index = int(os.getenv("SHARD_INDEX", "0"))
         max_symbols = int(os.getenv("MAX_SYMBOLS", "200"))
+        max_concurrency = int(os.getenv("MAX_CONCURRENCY", "1"))
 
         catalog = MarketData(table_name=market_table, region=region)
         company_repo = Company(table_name=company_table, region=region)
@@ -59,6 +60,7 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             shard_total=shard_total,
             shard_index=shard_index,
             max_symbols=max_symbols,
+            max_concurrency=max_concurrency,
             include_financials=True,
         )
         return {"statusCode": 200, "body": json.dumps(outcome)}

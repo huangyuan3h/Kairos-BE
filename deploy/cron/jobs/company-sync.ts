@@ -10,10 +10,14 @@ export function createCompanySyncCrons(
 ) {
   const crons: Record<string, any> = {};
   for (let i = 0; i < numShards; i++) {
-    const minuteOffset = 10 + i; // 22:10 .. 22:29 UTC
+    // Stagger by hour to control global QPS across shards
+    const baseHour = 22;
+    const hour = (baseHour + i) % 24; // 22, 23, 0, 1, ...
+    const dayOfMonth = 1 + Math.floor((baseHour + i) / 24); // 1 or 2
+    const minuteOffset = 10; // fixed minute to keep predictability
     const name = `CompanySyncCn-${i}`;
     crons[name] = new sst.aws.Cron(name, {
-      schedule: `cron(${minuteOffset} 22 1 2,5,9,11 ? *)`,
+      schedule: `cron(${minuteOffset} ${hour} ${dayOfMonth} 2,5,9,11 ? *)`,
       function: {
         handler: "functions/python/sync_company.handler",
         runtime: "python3.11",
@@ -28,7 +32,8 @@ export function createCompanySyncCrons(
           // Sharding only; keep concurrency low per shard to avoid anti-bot
           SHARD_TOTAL: String(numShards),
           SHARD_INDEX: String(i),
-          // no MAX_CONCURRENCY env; Python runs sequentially per shard
+          // Bounded in-function concurrency per shard
+          MAX_CONCURRENCY: "6",
         },
       },
     });
