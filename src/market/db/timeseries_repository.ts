@@ -62,12 +62,19 @@ export class TimeseriesRepository {
         ":from": fromSk,
         ":to": toSk,
       },
-      // Use ExpressionAttributeNames to avoid reserved keyword conflicts (e.g., "date")
+      // Use ExpressionAttributeNames to avoid reserved keyword conflicts (e.g., "date", "open", "close")
       ExpressionAttributeNames: {
         "#date": "date",
+        "#as_of_date": "as_of_date",
+        "#open": "open",
+        "#high": "high",
+        "#low": "low",
+        "#close": "close",
+        "#adj_close": "adj_close",
+        "#volume": "volume",
       },
       ProjectionExpression:
-        "gsi1sk, #date, as_of_date, open, high, low, close, adj_close, volume",
+        "gsi1sk, #date, #as_of_date, #open, #high, #low, #close, #adj_close, #volume",
       Limit: limit ?? inferredLimit,
       ScanIndexForward: true,
     });
@@ -106,9 +113,16 @@ export class TimeseriesRepository {
       // Avoid reserved attribute name conflicts
       ExpressionAttributeNames: {
         "#date": "date",
+        "#as_of_date": "as_of_date",
+        "#open": "open",
+        "#high": "high",
+        "#low": "low",
+        "#close": "close",
+        "#adj_close": "adj_close",
+        "#volume": "volume",
       },
       ProjectionExpression:
-        "gsi1sk, #date, as_of_date, open, high, low, close, adj_close, volume",
+        "gsi1sk, #date, #as_of_date, #open, #high, #low, #close, #adj_close, #volume",
       Limit: limit ?? 1,
       ScanIndexForward: false,
     });
