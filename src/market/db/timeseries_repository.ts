@@ -62,8 +62,12 @@ export class TimeseriesRepository {
         ":from": fromSk,
         ":to": toSk,
       },
+      // Use ExpressionAttributeNames to avoid reserved keyword conflicts (e.g., "date")
+      ExpressionAttributeNames: {
+        "#date": "date",
+      },
       ProjectionExpression:
-        "gsi1sk, date, as_of_date, open, high, low, close, adj_close, volume",
+        "gsi1sk, #date, as_of_date, open, high, low, close, adj_close, volume",
       Limit: limit ?? inferredLimit,
       ScanIndexForward: true,
     });
@@ -99,8 +103,12 @@ export class TimeseriesRepository {
         ":pk": gsi1pk,
         ":prefix": "ENTITY#QUOTE",
       },
+      // Avoid reserved attribute name conflicts
+      ExpressionAttributeNames: {
+        "#date": "date",
+      },
       ProjectionExpression:
-        "gsi1sk, date, as_of_date, open, high, low, close, adj_close, volume",
+        "gsi1sk, #date, as_of_date, open, high, low, close, adj_close, volume",
       Limit: limit ?? 1,
       ScanIndexForward: false,
     });
@@ -146,8 +154,16 @@ export class TimeseriesRepository {
     const direct = (item["date"] || item["as_of_date"]) as string | undefined;
     if (direct && /^\d{4}-\d{2}-\d{2}$/.test(direct)) return direct;
     const gsi1sk = item["gsi1sk"] as string | undefined;
-    if (gsi1sk && gsi1sk.startsWith("DATE#"))
-      return gsi1sk.slice("DATE#".length);
+    if (gsi1sk) {
+      // Support both legacy format "DATE#YYYY-MM-DD" and current "ENTITY#QUOTE#YYYY-MM-DD"
+      if (gsi1sk.startsWith("DATE#")) return gsi1sk.slice("DATE#".length);
+      const entityQuotePrefix = "ENTITY#QUOTE#";
+      if (gsi1sk.startsWith(entityQuotePrefix))
+        return gsi1sk.slice(
+          entityQuotePrefix.length,
+          entityQuotePrefix.length + 10
+        );
+    }
     const sk = item["sk"] as string | undefined;
     if (sk && sk.includes("DATE#"))
       return sk.split("DATE#").pop()!.slice(0, 10);
