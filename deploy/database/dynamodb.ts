@@ -34,17 +34,20 @@ import { createMarketDataTable } from "./market-data";
 import { createIndexDataTable } from "./index-data";
 import { createReportsTable } from "./reports";
 import { createStockDataTable } from "./stock-data";
+import { createCompanyTable } from "./company";
 
 export function createDatabase() {
   const marketDataTable = createMarketDataTable();
   const indexDataTable = createIndexDataTable();
   const reportsTable = createReportsTable();
   const stockDataTable = createStockDataTable();
+  const companyTable = createCompanyTable();
 
   return {
     marketDataTable,
     indexDataTable,
     reportsTable,
     stockDataTable,
+    companyTable,
   };
 }
