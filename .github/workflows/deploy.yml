@@ -67,6 +67,11 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: us-east-1
 
+      - name: SST unlock
+        env:
+          SST_TELEMETRY_DISABLED: "1"
+        run: bun sst unlock --stage $SST_STAGE | cat || true
+
       - name: SST deploy
         env:
           SST_TELEMETRY_DISABLED: "1"
