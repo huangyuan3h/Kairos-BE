@@ -19,25 +19,18 @@ jobs:
     runs-on: ubuntu-latest
     environment: production
     steps:
-      - name: Free disk space (pre)
-        shell: bash
-        run: |
-          echo "Before cleanup" && df -h || true
-          sudo swapoff -a || true
-          sudo rm -f /swapfile || true
-          sudo docker system prune -af --volumes || true
-          sudo rm -rf /usr/local/lib/android || true
-          sudo rm -rf /usr/share/dotnet || true
-          sudo rm -rf /opt/ghc || true
-          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
-          sudo apt-get clean || true
-          pip cache purge || true
-          rm -rf ~/.cache || true
-          echo "After cleanup" && df -h || true
+      - name: Free up disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          # 设置为 true 来删除这些大型工具
+          android: true
+          dotnet: true
+          haskell: true
+          # 你的脚本中也清理了 docker，这里也可以加上
+          docker-images: true
 
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Node (for SST)
         uses: actions/setup-node@v4
         with:
