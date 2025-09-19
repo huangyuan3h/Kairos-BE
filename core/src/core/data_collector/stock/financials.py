@@ -24,7 +24,8 @@ import time
 
 def pad_score(score: float) -> str:
     """Left-pad score for lexical ordering in GSI sort key."""
-    return f"{score:08.3f}"
+    # Use width=9 to ensure five digits before decimal for 0.000 -> "00000.000"
+    return f"{score:09.3f}"
 
 
 def shard_ok(symbol: str, shard_total: int, shard_index: int) -> bool:
