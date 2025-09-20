@@ -13,6 +13,8 @@ from __future__ import annotations
 from typing import Any, Callable, Dict, List, Optional
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import logging
+import os
+import threading
 
 import pandas as pd  # type: ignore
 import akshare as ak  # type: ignore
@@ -20,6 +22,33 @@ import hashlib
 import random
 import time
 logger = logging.getLogger(__name__)
+
+# ---------------- Global fetch rate limiter (shared per Lambda) ----------------
+_rate_lock = threading.Lock()
+_last_fetch_ts: float = 0.0
+try:
+    _RPS = float(os.getenv("UPSTREAM_RPS", "2"))  # average requests per second per shard
+    if _RPS <= 0:
+        _RPS = 1.0
+except Exception:
+    _RPS = 2.0
+
+
+def _global_fetch_gate() -> None:
+    """Serialize external fetches to respect average RPS across threads.
+
+    This is a simple leaky-bucket: ensure at least 1/RPS seconds gap
+    between two fetches globally in the process.
+    """
+    global _last_fetch_ts
+    gap = 1.0 / max(0.1, _RPS)
+    with _rate_lock:
+        now = time.time()
+        wait = _last_fetch_ts + gap - now
+        if wait > 0:
+            time.sleep(wait)
+            now = time.time()
+        _last_fetch_ts = now
 def pad_score(score: float) -> str:
     """Left-pad score for lexical ordering in GSI sort key."""
     # Use width=9 to ensure five digits before decimal for 0.000 -> "00000.000"
@@ -68,10 +97,11 @@ def to_code6(canonical_symbol: str) -> str:
 
 def _fetch_statement_df(code6: str, statement: str) -> Optional[pd.DataFrame]:
     """Fetch a single financial statement with minimal retries and backoff."""
-    max_attempts = 3
-    base_delay = 0.7
+    max_attempts = 5
+    base_delay = 1.0
     for attempt in range(1, max_attempts + 1):
         try:
+            _global_fetch_gate()
             df = ak.stock_financial_report_sina(stock=code6, symbol=statement)
             if df is None or df.empty:
                 raise RuntimeError("empty dataframe")
@@ -88,7 +118,7 @@ def _fetch_statement_df(code6: str, statement: str) -> Optional[pd.DataFrame]:
                     str(exc),
                 )
                 return None
-            delay = base_delay * (2 ** (attempt - 1)) + random.uniform(0.0, 0.4)
+            delay = base_delay * (2 ** (attempt - 1)) + random.uniform(0.0, 0.7)
             time.sleep(delay)
     return None
 
