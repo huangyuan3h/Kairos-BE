@@ -8,7 +8,6 @@ import { createSyncMarketDataCron } from "./jobs/sync-market-data";
 import { createSyncIndexQuotesCron } from "./jobs/sync-index-quotes";
 import { createIngestCnStocksCrons } from "./jobs/ingest-cn-stocks";
 import { createOverallReportCron } from "./jobs/overall-report";
-import { createCompanySyncCrons } from "./jobs/company-sync";
 
 export async function createCronJobs(
   linkables: { linkableValue: any },
@@ -36,13 +35,10 @@ export async function createCronJobs(
   // New: Sharded CN A-shares ingestion (default 10 shards) with minute-level staggering
   const ingestCnStocksShards = createIngestCnStocksCrons({ stockDataTable: database.stockDataTable, marketDataTable: database.marketDataTable }, 10);
 
-  const companySyncShards = createCompanySyncCrons({ companyTable: database.companyTable, marketDataTable: database.marketDataTable }, 20);
-
   return {
     syncMarketData,
     syncIndexQuotes,
     ingestCnStocksShards,
-    companySyncShards,
     overallReport,
   };
 }
