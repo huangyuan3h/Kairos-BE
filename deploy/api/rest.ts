@@ -7,7 +7,7 @@
 declare const sst: any;
 export function createRestApi(
   linkables: { linkableValue: any },
-  database: { reportsTable: any; marketDataTable?: any; indexDataTable?: any; stockDataTable?: any },
+  database: { reportsTable: any; marketDataTable?: any; indexDataTable?: any; stockDataTable?: any; companyTable?: any },
   options?: { isProduction?: boolean; stage?: string }
 ) {
   // Main REST API gateway
@@ -90,6 +90,20 @@ export function createRestApi(
       environment: {
         INDEX_DATA_TABLE: database.indexDataTable.name,
         STOCK_DATA_TABLE: database.stockDataTable.name,
+      },
+    });
+  }
+
+  // Company lookup by code (profile/master record)
+  // Query params:
+  // - code: string (required)
+  if (database.companyTable) {
+    api.route("GET /company", {
+      handler: "functions/nodejs/get_company.handler",
+      runtime: "nodejs20.x",
+      link: [database.companyTable],
+      environment: {
+        COMPANY_TABLE: database.companyTable.name,
       },
     });
   }
