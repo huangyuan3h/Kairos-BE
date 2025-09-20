@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+from decimal import Decimal
 
 import boto3  # type: ignore
 
@@ -23,8 +24,33 @@ class Company:
         return self._table_name
 
     def put_company(self, item: Dict[str, Any]) -> None:
-        """Upsert a company item. Caller must provide pk and score/GSI fields."""
-        self._table.put_item(Item=item)
+        """Upsert a company item. Caller must provide pk and score/GSI fields.
+
+        DynamoDB does not support native Python float. Convert all float values to Decimal.
+        This function performs a deep conversion for dicts and lists.
+        """
+
+        def _convert(value: Any) -> Any:
+            # Convert floats to Decimal using string constructor to preserve precision
+            if isinstance(value, float):
+                return Decimal(str(value))
+            # Integers and booleans are directly supported
+            if isinstance(value, (int, bool)):
+                return value
+            # Strings and None are directly supported (None maps to NULL)
+            if value is None or isinstance(value, str):
+                return value
+            # Lists: convert each element
+            if isinstance(value, list):
+                return [_convert(v) for v in value]
+            # Dicts: convert each value
+            if isinstance(value, dict):
+                return {k: _convert(v) for k, v in value.items()}
+            # Fallback: leave as-is (DynamoDB may reject unsupported types)
+            return value
+
+        item_converted = _convert(item)
+        self._table.put_item(Item=item_converted)
 
     def get_company(self, symbol: str) -> Optional[Dict[str, Any]]:
         res = self._table.get_item(Key={"pk": symbol})
