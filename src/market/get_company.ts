@@ -9,20 +9,15 @@ export interface GetCompanyInput {
   companyTableName: string;
 }
 
-export interface GetCompanyOutput {
-  code: string;
-  company: CompanyItem | null;
-}
-
 export async function getCompany(
   input: GetCompanyInput
-): Promise<GetCompanyOutput> {
+): Promise<CompanyItem | null> {
   const logger = getLogger("market/get_company");
   const code = normalizeCode(input.code);
   const repo = new CompanyRepository({ tableName: input.companyTableName });
   const company = await repo.getByCode({ code });
   logger.debug({ code, found: company != null }, "company business result");
-  return { code, company };
+  return company;
 }
 
 function normalizeCode(code: string): string {

@@ -23,11 +23,11 @@ export const handler = async (event: any) => {
 
     const result = await getCompany({ code, companyTableName });
 
-    if (!result.company) {
+    if (!result) {
       return {
         statusCode: 404,
         headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
-        body: JSON.stringify({ error: "company not found", code: result.code }),
+        body: JSON.stringify({ error: "company not found", code }),
       };
     }
 
