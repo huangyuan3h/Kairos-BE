@@ -203,3 +203,4 @@ bun.lockb
 *~
 
 .vscode/
+scripts/.company_sync_checkpoint
