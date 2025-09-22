@@ -73,7 +73,9 @@ export class MarketDataRepository {
       Limit: limit,
     });
     const out = await this.doc.send(cmd);
-    const items = (out.Items ?? []).map(it => this.ensureSymbol(it));
+    const items = (out.Items ?? []).map(it =>
+      this.normalize(this.ensureSymbol(it))
+    );
     return items as unknown as CatalogItem[];
   }
 
@@ -119,7 +121,9 @@ export class MarketDataRepository {
         ExclusiveStartKey: lastKey as any,
       });
       const out = (await this.doc.send(cmd as any)) as ScanCommandOutput;
-      const items = (out.Items ?? []).map(it => this.ensureSymbol(it));
+      const items = (out.Items ?? []).map(it =>
+        this.normalize(this.ensureSymbol(it))
+      );
       for (const it of items as unknown as CatalogItem[]) {
         collected.push(it);
         if (collected.length >= limit) break;
@@ -149,5 +153,17 @@ export class MarketDataRepository {
     if (!s) return undefined;
     const pos = s.indexOf("#");
     return pos >= 0 && pos + 1 < s.length ? s.slice(pos + 1) : undefined;
+  }
+
+  /**
+   * Normalize catalog item fields for API consumers.
+   * - asset_type: collapse "etf" into "index" to keep a two-type taxonomy.
+   */
+  private normalize(item: Record<string, unknown>): Record<string, unknown> {
+    const v = item?.["asset_type"] as string | undefined;
+    if (typeof v === "string" && v.toLowerCase() === "etf") {
+      return { ...item, asset_type: "index" };
+    }
+    return item;
   }
 }
