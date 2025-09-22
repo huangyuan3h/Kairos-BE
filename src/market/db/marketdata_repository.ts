@@ -54,6 +54,8 @@ export class MarketDataRepository {
         ":pk": gsi2pk,
         ":entity": "ENTITY#CATALOG",
         ":q": q,
+        ":qu": q.toUpperCase(),
+        ":ql": q.toLowerCase(),
       },
       ExpressionAttributeNames: {
         "#name": "name",
@@ -62,7 +64,10 @@ export class MarketDataRepository {
       },
       // Some items may not materialize 'symbol'; include pk/gsi1pk for fuzzy code match
       FilterExpression:
-        "contains(#name, :q) OR contains(#symbol, :q) OR contains(pk, :q) OR contains(gsi1pk, :q)",
+        "contains(#name, :q) OR contains(#name, :qu) OR contains(#name, :ql) OR " +
+        "contains(#symbol, :q) OR contains(#symbol, :qu) OR contains(#symbol, :ql) OR " +
+        "contains(pk, :q) OR contains(pk, :qu) OR contains(pk, :ql) OR " +
+        "contains(gsi1pk, :q) OR contains(gsi1pk, :qu) OR contains(gsi1pk, :ql)",
       ProjectionExpression:
         "pk, gsi1pk, symbol, #name, exchange, asset_type, market, #status",
       Limit: limit,
@@ -92,8 +97,17 @@ export class MarketDataRepository {
         TableName: this.table,
         // Include pk/gsi1pk in fuzzy to handle items without materialized 'symbol'
         FilterExpression:
-          "begins_with(sk, :sk) AND (contains(#name, :q) OR contains(#symbol, :q) OR contains(pk, :q) OR contains(gsi1pk, :q))",
-        ExpressionAttributeValues: { ":sk": "META#CATALOG", ":q": q },
+          "begins_with(sk, :sk) AND (" +
+          "contains(#name, :q) OR contains(#name, :qu) OR contains(#name, :ql) OR " +
+          "contains(#symbol, :q) OR contains(#symbol, :qu) OR contains(#symbol, :ql) OR " +
+          "contains(pk, :q) OR contains(pk, :qu) OR contains(pk, :ql) OR " +
+          "contains(gsi1pk, :q) OR contains(gsi1pk, :qu) OR contains(gsi1pk, :ql))",
+        ExpressionAttributeValues: {
+          ":sk": "META#CATALOG",
+          ":q": q,
+          ":qu": q.toUpperCase(),
+          ":ql": q.toLowerCase(),
+        },
         ExpressionAttributeNames: {
           "#name": "name",
           "#symbol": "symbol",
