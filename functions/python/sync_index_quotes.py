@@ -101,10 +101,12 @@ def handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         )
         symbols_dynamic = set(pd.concat([idx_df, etf_df], ignore_index=True)["symbol"].astype(str).tolist()) if not (idx_df.empty and etf_df.empty) else set()
 
-        # Fallback to static mapping if dynamic list is empty
+        # Use static mapping as the source of truth to avoid missing key symbols
+        # when the dynamic catalog is not fully seeded yet.
+        # Dynamic list will be leveraged later to control status once coverage is complete.
         mapping = get_index_source_mapping()
         mapping_symbols = set(mapping.keys())
-        symbols = list((symbols_dynamic & mapping_symbols) if symbols_dynamic else mapping_symbols)
+        symbols = list(mapping_symbols)
 
         # No symbols available → skip execution
         if not symbols:
