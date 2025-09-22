@@ -115,10 +115,10 @@ def get_main_index_catalog() -> pd.DataFrame:
         {"symbol": "CN:SHCOMP", "name": "Shanghai Composite Index", "exchange": "CN", "asset_type": "index", "market": "INDEX", "status": "active"},
         {"symbol": "CN:CSI500", "name": "CSI 500 Index", "exchange": "CN", "asset_type": "index", "market": "INDEX", "status": "active"},
 
-        # Key ETFs (US)
-        {"symbol": "US:SPY", "name": "SPDR S&P 500 ETF", "exchange": "US", "asset_type": "etf", "market": "US", "status": "active"},
-        {"symbol": "US:QQQ", "name": "Invesco QQQ Trust", "exchange": "US", "asset_type": "etf", "market": "US", "status": "active"},
-        {"symbol": "US:IWM", "name": "iShares Russell 2000 ETF", "exchange": "US", "asset_type": "etf", "market": "US", "status": "active"},
+        # Key ETFs (US) → treat as index for simplified asset taxonomy
+        {"symbol": "US:SPY", "name": "SPDR S&P 500 ETF", "exchange": "US", "asset_type": "index", "market": "US", "status": "active"},
+        {"symbol": "US:QQQ", "name": "Invesco QQQ Trust", "exchange": "US", "asset_type": "index", "market": "US", "status": "active"},
+        {"symbol": "US:IWM", "name": "iShares Russell 2000 ETF", "exchange": "US", "asset_type": "index", "market": "US", "status": "active"},
     ]
 
     return _rows_to_dataframe(rows)
