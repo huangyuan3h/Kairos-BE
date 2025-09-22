@@ -65,7 +65,7 @@ export async function getTimeseries(
     return { asset: "stock", code, from, to, count: points.length, points };
   }
 
-  // Auto-detect: try index first, then stock
+  // Auto-detect: prefer index for unified codes like "US:QQQ"/"GLOBAL:VIX"
   {
     const indexRepo = new TimeseriesRepository({
       tableName: input.indexTableName,
@@ -87,6 +87,12 @@ export async function getTimeseries(
       { asset: "index", code, latestCount: latest.length },
       "timeseries autodetect index latest"
     );
+    // If code looks like a unified index/etf symbol (contains ":"),
+    // stick to index classification even when the current window has no points.
+    // This avoids misclassifying symbols like US:QQQ as stock.
+    if (code.includes(":")) {
+      return { asset: "index", code, from, to, count: points.length, points };
+    }
   }
 
   {
