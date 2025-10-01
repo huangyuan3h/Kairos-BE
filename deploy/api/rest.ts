@@ -2,7 +2,7 @@
  * REST API configurations
  * Manages all REST API endpoints and related resources
  */
-
+/// <reference path="../../.sst/platform/config.d.ts" />
 // Global sst declaration
 declare const sst: any;
 export function createRestApi(

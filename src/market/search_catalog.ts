@@ -43,10 +43,10 @@ export async function searchCatalog(
       const part = await repo.queryCatalogByMarketFuzzy({ market, q, limit });
       await add(part);
     } catch (err) {
-      // If GSI is missing or query fails, fall back to bounded Scan
+      // If GSI query fails, continue with best-effort empty result for this partition
       logger.warn(
         { err },
-        "queryCatalogByMarketFuzzy failed; falling back to Scan"
+        "queryCatalogByMarketFuzzy failed for requested market"
       );
     }
   } else {
@@ -61,23 +61,12 @@ export async function searchCatalog(
         });
         await add(part);
       } catch (err) {
-        // Skip partition on error; a later Scan will still provide best-effort results
+        // Skip partition on error and continue with remaining partitions
         logger.warn(
           { err, market: mk },
           "queryCatalogByMarketFuzzy failed for market partition"
         );
       }
-    }
-  }
-
-  if (collected.length === 0) {
-    try {
-      const scanned = await repo.scanCatalogFuzzy({ q, limit });
-      await add(scanned);
-    } catch (err) {
-      // Last-resort path should never fail; if it does, return best-effort empty result
-      logger.error({ err }, "scanCatalogFuzzy failed; returning empty result");
-      return { count: collected.length, items: collected };
     }
   }
 
