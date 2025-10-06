@@ -2,7 +2,7 @@
  * REST API configurations
  * Manages all REST API endpoints and related resources
  */
-
+/// <reference path="../../.sst/platform/config.d.ts" />
 // Global sst declaration
 declare const sst: any;
 export function createRestApi(
@@ -85,6 +85,16 @@ export function createRestApi(
   if (database.indexDataTable && database.stockDataTable) {
     api.route("GET /timeseries", {
       handler: "functions/nodejs/get_timeseries.handler",
+      runtime: "nodejs20.x",
+      link: [database.indexDataTable, database.stockDataTable],
+      environment: {
+        INDEX_DATA_TABLE: database.indexDataTable.name,
+        STOCK_DATA_TABLE: database.stockDataTable.name,
+      },
+    });
+
+    api.route("GET /snapshot", {
+      handler: "functions/nodejs/get_snapshot.handler",
       runtime: "nodejs20.x",
       link: [database.indexDataTable, database.stockDataTable],
       environment: {

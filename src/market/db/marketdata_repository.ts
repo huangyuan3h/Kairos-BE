@@ -5,12 +5,7 @@
  * Lambda handlers remain thin and business logic stays testable.
  */
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import {
-  DynamoDBDocumentClient,
-  QueryCommand,
-  ScanCommand,
-  ScanCommandOutput,
-} from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 
 export interface CatalogItem {
   symbol: string;
@@ -77,61 +72,6 @@ export class MarketDataRepository {
       this.normalize(this.ensureSymbol(it))
     );
     return items as unknown as CatalogItem[];
-  }
-
-  /**
-   * Fallback Scan with pagination. IMPORTANT: For Scan with FilterExpression, the Limit
-   * applies to scanned items, not filtered results. We must paginate until we collect
-   * enough matches or the table is exhausted to avoid false negatives.
-   */
-  async scanCatalogFuzzy(params: {
-    q: string;
-    limit: number;
-  }): Promise<CatalogItem[]> {
-    const { q, limit } = params;
-    const collected: CatalogItem[] = [];
-    let lastKey: Record<string, unknown> | undefined = undefined;
-    // Page size of scanned items per request; tuned to balance cost and latency
-    const pageSize = Math.max(Math.min(limit * 5, 200), 50); // 50..200
-
-    while (collected.length < limit) {
-      const cmd: ScanCommand = new ScanCommand({
-        TableName: this.table,
-        // Include pk/gsi1pk in fuzzy to handle items without materialized 'symbol'
-        FilterExpression:
-          "begins_with(sk, :sk) AND (" +
-          "contains(#name, :q) OR contains(#name, :qu) OR contains(#name, :ql) OR " +
-          "contains(#symbol, :q) OR contains(#symbol, :qu) OR contains(#symbol, :ql) OR " +
-          "contains(pk, :q) OR contains(pk, :qu) OR contains(pk, :ql) OR " +
-          "contains(gsi1pk, :q) OR contains(gsi1pk, :qu) OR contains(gsi1pk, :ql))",
-        ExpressionAttributeValues: {
-          ":sk": "META#CATALOG",
-          ":q": q,
-          ":qu": q.toUpperCase(),
-          ":ql": q.toLowerCase(),
-        },
-        ExpressionAttributeNames: {
-          "#name": "name",
-          "#symbol": "symbol",
-          "#status": "status",
-        },
-        ProjectionExpression:
-          "pk, gsi1pk, symbol, #name, exchange, asset_type, market, #status",
-        Limit: pageSize,
-        ExclusiveStartKey: lastKey as any,
-      });
-      const out = (await this.doc.send(cmd as any)) as ScanCommandOutput;
-      const items = (out.Items ?? []).map(it =>
-        this.normalize(this.ensureSymbol(it))
-      );
-      for (const it of items as unknown as CatalogItem[]) {
-        collected.push(it);
-        if (collected.length >= limit) break;
-      }
-      lastKey = out.LastEvaluatedKey;
-      if (!lastKey) break;
-    }
-    return collected;
   }
 
   /**
