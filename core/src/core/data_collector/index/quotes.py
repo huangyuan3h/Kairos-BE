@@ -29,7 +29,7 @@ import random
 import time
 from datetime import date, datetime, timedelta
 from json import JSONDecodeError
-from typing import Callable, Dict, Iterable, List, Optional
+from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
 import pandas as pd  # type: ignore[import]
 from requests.exceptions import RequestException
@@ -281,15 +281,13 @@ FETCH_DISPATCH: Dict[str, Callable[[str, date, date], pd.DataFrame]] = {
 }
 
 
-def fetch_index_quotes(symbol: str, start: date, end: date) -> pd.DataFrame:
-    """Fetch daily quotes for a single unified symbol between [start, end].
-
-    Returns a normalized DataFrame with required columns.
-    """
+def _fetch_index_quotes_with_source(
+    symbol: str, start: date, end: date
+) -> Tuple[pd.DataFrame, Optional[str]]:
     mapping = get_index_source_mapping()
     spec = mapping.get(symbol)
     if not spec:
-        return _empty_yf_frame()
+        return _empty_yf_frame(), None
 
     order = _resolve_source_order(spec)
     for source_key in order:
@@ -308,9 +306,18 @@ def fetch_index_quotes(symbol: str, start: date, end: date) -> pd.DataFrame:
             )
             continue
         if data is not None and not data.empty:
-            return data
+            return data, source_key
 
-    return _empty_yf_frame()
+    return _empty_yf_frame(), None
+
+
+def fetch_index_quotes(symbol: str, start: date, end: date) -> pd.DataFrame:
+    """Fetch daily quotes for a single unified symbol between [start, end].
+
+    Returns a normalized DataFrame with required columns.
+    """
+    data, _ = _fetch_index_quotes_with_source(symbol, start, end)
+    return data
 
 
 def build_quotes_df(symbol: str, start: date, end: date) -> pd.DataFrame:
@@ -318,14 +325,12 @@ def build_quotes_df(symbol: str, start: date, end: date) -> pd.DataFrame:
 
     Output columns: symbol, date, open, high, low, close, adj_close, volume, currency, source
     """
-    mapping = get_index_source_mapping()
-    src = mapping.get(symbol, (None, None))[0]
-    data = fetch_index_quotes(symbol, start, end)
+    data, source_key = _fetch_index_quotes_with_source(symbol, start, end)
     if data.empty:
         return data
     data = data.copy()
     data.insert(0, "symbol", symbol)
-    data["source"] = src
+    data["source"] = source_key
     return data
 
 
