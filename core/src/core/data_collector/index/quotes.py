@@ -237,15 +237,26 @@ def _fetch_us_equity_akshare(symbol: str, start: date, end: date) -> pd.DataFram
     start_s = start.strftime("%Y%m%d")
     end_s = end.strftime("%Y%m%d")
 
-    df = ak.stock_us_hist(symbol=symbol, start_date=start_s, end_date=end_s, adjust="")
+    df = None
+    try:
+        df = ak.stock_us_hist(symbol=symbol, start_date=start_s, end_date=end_s, adjust="")
+    except Exception as exc:  # pragma: no cover - network dependent
+        logger.warning("ak.stock_us_hist failed for %s: %s", symbol, exc)
+
     if df is None or df.empty:
-        df = ak.stock_us_daily(symbol=symbol, adjust="")
+        try:
+            df = ak.stock_us_daily(symbol=symbol, adjust="")
+        except Exception as exc:  # pragma: no cover - network dependent
+            logger.warning("ak.stock_us_daily failed for %s: %s", symbol, exc)
+            return _empty_yf_frame()
+
     if df is None or df.empty:
         return _empty_yf_frame()
 
     df = df.copy()
     rename_map = {
         "日期": "date",
+        "时间": "date",
         "开盘": "open",
         "最高": "high",
         "最低": "low",
@@ -254,11 +265,15 @@ def _fetch_us_equity_akshare(symbol: str, start: date, end: date) -> pd.DataFram
     }
     df = df.rename(columns=rename_map)
     if "date" not in df.columns:
+        logger.warning("akshare output missing date column for %s", symbol)
         return _empty_yf_frame()
 
     df["date"] = pd.to_datetime(df["date"], errors="coerce").dt.date
     df = df.dropna(subset=["date"]).copy()
     df = df[(df["date"] >= start) & (df["date"] <= end)].copy()
+
+    if df.empty:
+        return _empty_yf_frame()
 
     for col in ["open", "high", "low", "close", "volume"]:
         if col in df.columns:
@@ -269,8 +284,7 @@ def _fetch_us_equity_akshare(symbol: str, start: date, end: date) -> pd.DataFram
     for col in _EMPTY_YF_COLUMNS:
         if col not in df.columns:
             df[col] = pd.NA
-    df = df[_EMPTY_YF_COLUMNS]
-    return df
+    return df[_EMPTY_YF_COLUMNS]
 
 
 FETCH_DISPATCH: Dict[str, Callable[[str, date, date], pd.DataFrame]] = {
