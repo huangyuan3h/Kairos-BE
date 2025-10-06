@@ -153,13 +153,13 @@ def _fetch_yf_symbol(ticker: str, start: date, end: date) -> pd.DataFrame:
 
             if hist is None or hist.empty:
                 logger.warning(
+                    "yfinance returned empty frame: %s",
                     {
                         "ticker": ticker,
                         "start": start.isoformat(),
                         "end": end.isoformat(),
                         "attempt": attempt,
                     },
-                    "yfinance returned empty frame",
                 )
                 return _empty_yf_frame()
 
@@ -178,7 +178,10 @@ def _fetch_yf_symbol(ticker: str, start: date, end: date) -> pd.DataFrame:
             hist = hist.rename(columns=rename_map)
 
             if "date" not in hist.columns:
-                logger.error({"ticker": ticker}, "yfinance output missing date column")
+                logger.error(
+                    "yfinance output missing date column: %s",
+                    {"ticker": ticker},
+                )
                 return _empty_yf_frame()
 
             if not pd.api.types.is_datetime64_any_dtype(hist["date"]):
@@ -200,12 +203,12 @@ def _fetch_yf_symbol(ticker: str, start: date, end: date) -> pd.DataFrame:
         except (JSONDecodeError, RequestException, ValueError, KeyError) as exc:
             last_error = exc
             logger.warning(
+                "yfinance fetch attempt failed: %s",
                 {
                     "ticker": ticker,
                     "attempt": attempt,
                     "error": str(exc),
                 },
-                "yfinance fetch attempt failed",
             )
             if attempt < attempts:
                 sleep_s = 0.75 * attempt + random.uniform(0, 0.5)
@@ -213,13 +216,13 @@ def _fetch_yf_symbol(ticker: str, start: date, end: date) -> pd.DataFrame:
                 continue
 
     logger.error(
+        "yfinance fetch failed after retries: %s",
         {
             "ticker": ticker,
             "start": start.isoformat(),
             "end": end.isoformat(),
             "error": str(last_error) if last_error else "unknown",
         },
-        "yfinance fetch failed after retries",
     )
     return _empty_yf_frame()
 
