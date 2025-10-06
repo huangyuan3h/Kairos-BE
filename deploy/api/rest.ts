@@ -92,6 +92,16 @@ export function createRestApi(
         STOCK_DATA_TABLE: database.stockDataTable.name,
       },
     });
+
+    api.route("GET /snapshot", {
+      handler: "functions/nodejs/get_snapshot.handler",
+      runtime: "nodejs20.x",
+      link: [database.indexDataTable, database.stockDataTable],
+      environment: {
+        INDEX_DATA_TABLE: database.indexDataTable.name,
+        STOCK_DATA_TABLE: database.stockDataTable.name,
+      },
+    });
   }
 
   // Company lookup by code (profile/master record)

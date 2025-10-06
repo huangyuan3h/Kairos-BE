@@ -1,0 +1,311 @@
+//@version=6
+indicator('Optimized Swing Falcon - Red Line', overlay = true, precision = 2)
+
+// === Inputs ====================================================
+emaShortLen = input.int(21, 'EMA Short Length', minval = 1)
+emaMidLen = input.int(55, 'EMA Mid Length', minval = 1)
+emaLongLen = input.int(144, 'EMA Long Length', minval = 1)
+
+bbLen = input.int(20, 'Bollinger Length', minval = 1)
+bbMult = input.float(2.0, 'Bollinger Multiplier', minval = 0.1, step = 0.1)
+squeezeLookback = input.int(60, 'Bollinger Compression Lookback', minval = 5)
+squeezeTolerance = input.float(1.10, 'Compression Tolerance', minval = 0.5, step = 0.05)
+
+volLookback = input.int(20, 'Volume SMA Length', minval = 1)
+volWatchFactor = input.float(1.05, 'Volume Factor (Watch)', minval = 0.0, step = 0.05)
+volBreakFactor = input.float(1.30, 'Volume Factor (Breakout)', minval = 0.0, step = 0.05)
+
+breakoutAtrMult = input.float(0.08, 'Breakout ATR Buffer', minval = 0.0, step = 0.01)
+breakoutAtrLen = input.int(14, 'Breakout ATR Length', minval = 1)
+
+rsiLen = input.int(14, 'RSI Length', minval = 1)
+rsiBuyThreshold = input.float(55.0, 'RSI Threshold (Buy)', minval = 0.0, maxval = 100.0, step = 0.5)
+rsiExitThreshold = input.float(48.0, 'RSI Threshold (Exit)', minval = 0.0, maxval = 100.0, step = 0.5)
+
+trailLookback = input.int(14, 'Trail Lookback', minval = 1)
+trailAtrLen = input.int(10, 'Trail ATR Length', minval = 1)
+trailAtrMult = input.float(2.0, 'Trail ATR Multiplier', minval = 0.0, step = 0.1)
+redLineBridgeGap = input.int(3, 'Red Line Bridge Gap', minval = 0)
+
+useHigherTimeframeFilter = input.bool(true, 'Enable Higher Timeframe Filter')
+higherTimeframe = input.timeframe('D', 'Higher Timeframe')
+htfEmaShortLen = input.int(34, 'HTF EMA Short Length', minval = 1)
+htfEmaMidLen = input.int(89, 'HTF EMA Mid Length', minval = 1)
+htfEmaLongLen = input.int(200, 'HTF EMA Long Length', minval = 1)
+
+adxLen = input.int(14, 'ADX Length', minval = 1)
+adxTrendThreshold = input.float(18.0, 'ADX Trend Threshold', minval = 1.0, step = 0.5)
+adxSmoothingLen = input.int(14, 'ADX Smoothing Length', minval = 1)
+useAdxFilter = input.bool(true, 'Enable ADX Filter')
+
+cooldownBars = input.int(4, 'Re-entry Cooldown Bars', minval = 0)
+maxTrailGivebackPct = input.float(0.03, 'Max Trail Giveback (%)', minval = 0.0, step = 0.001)
+
+earlyBearEmaBufferPct = input.float(0.002, 'Early Warning EMA Buffer (%)', minval = 0.0, step = 0.0001)
+earlyBearRsiBuffer = input.float(3.0, 'Early Warning RSI Buffer', minval = 0.0, step = 0.1)
+earlyBreakoutAtrBuffer = input.float(0.4, 'Early Warning Breakout ATR Multiplier', minval = 0.0, step = 0.05)
+earlyBreakoutRsiBuffer = input.float(5.0, 'Early Warning Breakout RSI Buffer', minval = 0.0, step = 0.1)
+earlyBreakoutVolumeFactor = input.float(0.9, 'Early Warning Volume Factor', minval = 0.0, step = 0.05)
+sellPivotLeft = input.int(2, 'Sell Pivot Left', minval = 1)
+sellPivotRight = input.int(2, 'Sell Pivot Right', minval = 1)
+sellRsiThreshold = input.float(58.0, 'Sell RSI Threshold', minval = 0.0, maxval = 100.0, step = 0.5)
+sellRsiRollBuffer = input.float(1.5, 'Sell RSI Roll Buffer', minval = 0.0, step = 0.1)
+sellSlopeBuffer = input.float(0.05, 'Sell EMA Slope Buffer', step = 0.0001)
+sellExtensionAtrMult = input.float(0.45, 'Sell Extension ATR Multiplier', minval = 0.0, step = 0.05)
+sellVolumeDropFactor = input.float(0.95, 'Sell Volume Drop Factor', minval = 0.0, step = 0.05)
+sellConditionMinMatches = input.int(2, 'Sell Condition Minimum Matches', minval = 1, maxval = 4)
+buyPivotLeft = input.int(2, 'Buy Pivot Left', minval = 1)
+buyPivotRight = input.int(2, 'Buy Pivot Right', minval = 1)
+buyRsiThreshold = input.float(42.0, 'Buy RSI Threshold', minval = 0.0, maxval = 100.0, step = 0.5)
+buyRsiRecoveryBuffer = input.float(3.0, 'Buy RSI Recovery Buffer', minval = 0.0, step = 0.1)
+buySlopeBuffer = input.float(0.05, 'Buy EMA Slope Buffer', step = 0.0001)
+buyVolumeFactor = input.float(1.1, 'Buy Volume Factor', minval = 0.0, step = 0.05)
+buyConditionMinMatches = input.int(2, 'Buy Condition Minimum Matches', minval = 1, maxval = 4)
+buyRedLineMinBars = input.int(5, 'Buy Red Line Minimum Bars', minval = 1)
+buyRedLineLookback = input.int(6, 'Buy Red Line Lookback', minval = 1)
+buyBreakoutAtrMult = input.float(0.25, 'Buy Breakout ATR Multiplier', minval = 0.0, step = 0.05)
+
+// === Core indicators ==========================================
+emaShort = ta.ema(close, emaShortLen)
+emaMid = ta.ema(close, emaMidLen)
+emaLong = ta.ema(close, emaLongLen)
+emaShortSlope = emaShort - emaShort[1]
+ema5 = ta.ema(close, 5)
+ema13 = ta.ema(close, 13)
+
+float htfEmaShort = request.security(syminfo.tickerid, higherTimeframe, ta.ema(close, htfEmaShortLen))
+float htfEmaMid = request.security(syminfo.tickerid, higherTimeframe, ta.ema(close, htfEmaMidLen))
+float htfEmaLong = request.security(syminfo.tickerid, higherTimeframe, ta.ema(close, htfEmaLongLen))
+float htfClose = request.security(syminfo.tickerid, higherTimeframe, close)
+
+[bbUpper, bbBasis, bbLower] = ta.bb(close, bbLen, bbMult)
+bbWidth = (bbUpper - bbLower) / nz(bbBasis, close)
+bbWidthFloor = ta.lowest(bbWidth, squeezeLookback)
+
+volumeSma = ta.sma(volume, volLookback)
+rsiValue = ta.rsi(close, rsiLen)
+atrBreakout = ta.atr(breakoutAtrLen)
+trailHighest = ta.highest(high, trailLookback)
+trailCandidate = trailHighest - ta.atr(trailAtrLen) * trailAtrMult
+[_plusDI, _minusDI, adxValue] = ta.dmi(adxLen, adxSmoothingLen)
+
+// === Enhanced conditions =====================================
+bool bullStructure = emaShort > emaMid and emaMid > emaLong and close > emaMid
+bool htfTrendAligned = not useHigherTimeframeFilter or htfEmaShort > htfEmaMid and htfEmaMid > htfEmaLong and htfClose > htfEmaMid
+bool bearBias = emaShort < emaMid or rsiValue < rsiExitThreshold
+bool compression = bbWidth < bbWidthFloor * squeezeTolerance
+bool trendStrengthAligned = not useAdxFilter or not na(adxValue) and adxValue >= adxTrendThreshold
+bool watchSignalRaw = bullStructure and htfTrendAligned and compression and volume > volumeSma * volWatchFactor and rsiValue > 40 and trendStrengthAligned
+
+// === State tracking ===========================================
+var bool watchActive = false
+var bool inLong = false
+var float watchHighRef = na
+var float trailLevel = na
+var float buySetupLevel = na
+var int exitCooldown = 0
+var float tradePeak = na
+var bool reentryAllowed = true
+
+if exitCooldown > 0 and not inLong
+    exitCooldown := exitCooldown - 1
+    exitCooldown
+
+reentryAllowed := exitCooldown <= 0
+
+// === Watch signal logic =======================================
+if watchSignalRaw and not watchActive and not inLong and reentryAllowed
+    watchActive := true
+    watchHighRef := high
+    buySetupLevel := high + atrBreakout * breakoutAtrMult
+    buySetupLevel
+else if watchActive and not inLong and reentryAllowed
+    if high > watchHighRef
+        watchHighRef := high
+        buySetupLevel := high + atrBreakout * breakoutAtrMult
+        buySetupLevel
+    bool invalid = close < emaMid or rsiValue < 40 or volume < volumeSma * 0.8
+    if invalid
+        watchActive := false
+        watchHighRef := na
+        buySetupLevel := na
+        buySetupLevel
+else if watchActive and not reentryAllowed
+    watchActive := false
+    watchHighRef := na
+    buySetupLevel := na
+    buySetupLevel
+
+// === Breakout logic ===========================================
+if watchActive and not na(buySetupLevel)
+    bool priceBreakout = close >= buySetupLevel
+    bool volumeConfirm = volume > volumeSma * volBreakFactor
+    bool rsiConfirm = rsiValue >= rsiBuyThreshold
+    bool slopeConfirm = emaShortSlope > 0
+    bool higherFrameConfirm = htfTrendAligned
+    bool adxConfirm = trendStrengthAligned
+    if priceBreakout and volumeConfirm and rsiConfirm and slopeConfirm and higherFrameConfirm and adxConfirm
+        inLong := true
+        watchActive := false
+        trailLevel := trailCandidate
+        watchHighRef := na
+        buySetupLevel := na
+        exitCooldown := 0
+        tradePeak := high
+        reentryAllowed := exitCooldown <= 0
+        reentryAllowed
+
+// === Trail management =========================================
+if inLong and not na(trailLevel)
+    float newTrailLevel = trailCandidate
+    trailLevel := math.max(trailLevel, newTrailLevel)
+    tradePeak := math.max(nz(tradePeak, high), high)
+    tradePeak
+else if not inLong
+    trailLevel := na
+    tradePeak := na
+    tradePeak
+
+// === Exit logic ===============================================
+bool emaCrossunder = ta.crossunder(ema5, ema13)
+if inLong
+    bool momentumLoss = close < emaShort and rsiValue < rsiExitThreshold or emaCrossunder or emaShortSlope <= 0
+    bool trailHit = not na(trailLevel) and close < trailLevel
+    bool giveBackTrigger = maxTrailGivebackPct > 0 and not na(tradePeak) and close <= tradePeak * (1.0 - maxTrailGivebackPct)
+    if momentumLoss or trailHit or giveBackTrigger
+        inLong := false
+        trailLevel := na
+        exitCooldown := cooldownBars
+        tradePeak := na
+        reentryAllowed := exitCooldown <= 0
+        reentryAllowed
+
+// === Red line logic ===========================================
+float redLineBase = inLong ? trailLevel : bearBias ? emaShort : na
+
+var float redLineMerged = na
+var int redLineGapCnt = redLineBridgeGap + 1
+
+float prevRedLineMerged = redLineMerged[1]
+int prevRedLineGap = nz(redLineGapCnt[1], redLineBridgeGap + 1)
+int candidateGap = prevRedLineGap + 1
+
+if not na(redLineBase)
+    redLineMerged := redLineBase
+    redLineGapCnt := 0
+    redLineGapCnt
+else if candidateGap <= redLineBridgeGap and not na(prevRedLineMerged)
+    redLineMerged := prevRedLineMerged
+    redLineGapCnt := candidateGap
+    redLineGapCnt
+else
+    redLineMerged := na
+    redLineGapCnt := redLineBridgeGap + 1
+    redLineGapCnt
+
+redLine = redLineMerged
+bool redLineActive = not na(redLine)
+
+var int redLineDuration = 0
+redLineDuration := redLineActive ? nz(redLineDuration[1]) + 1 : 0
+
+float redLineSlopeSeries = not na(redLine) and not na(redLine[1]) ? redLine - redLine[1] : na
+var int redLineDeclineStreak = 0
+redLineDeclineStreak := redLineActive and not na(redLineSlopeSeries) and redLineSlopeSeries <= 0 ? nz(redLineDeclineStreak[1]) + 1 : 0
+
+int barsSinceRedLineActiveRaw = ta.barssince(redLineActive)
+int barsSinceRedLineActive = na(barsSinceRedLineActiveRaw) ? 100000 : barsSinceRedLineActiveRaw
+
+// === Plot ======================================================
+plot(redLine, title = 'Red Line', color = color.new(color.red, 0), linewidth = 3, style = plot.style_linebr)
+
+// === Warning markers ===========================================
+float emaDiff = emaShort - emaMid
+float emaDiffPct = emaMid != 0.0 ? emaDiff / emaMid : 0.0
+bool emaNearBear = emaDiff > 0 and emaDiffPct <= earlyBearEmaBufferPct
+bool rsiNearExit = rsiValue > rsiExitThreshold and rsiValue <= rsiExitThreshold + earlyBearRsiBuffer
+bool earlyBearWarning = not inLong and emaNearBear and rsiNearExit
+
+bool hasSetup = watchActive and not na(buySetupLevel) and reentryAllowed
+float breakoutDistance = hasSetup ? math.max(buySetupLevel - close, 0.0) : na
+bool priceNearBreak = hasSetup and not na(breakoutDistance) and breakoutDistance <= atrBreakout * earlyBreakoutAtrBuffer
+bool rsiBuilding = rsiValue >= rsiBuyThreshold - earlyBreakoutRsiBuffer
+bool slopePositive = emaShortSlope >= 0
+bool volumeBuilding = volume > volumeSma * earlyBreakoutVolumeFactor
+bool earlyBreakoutWarning = not inLong and hasSetup and priceNearBreak and rsiBuilding and slopePositive and volumeBuilding
+
+bool earlyWarningCondition = not redLineActive and (earlyBearWarning or earlyBreakoutWarning)
+bool earlyWarningPrev = earlyWarningCondition[1] ? true : false
+bool earlyWarningTrigger = earlyWarningCondition and not earlyWarningPrev
+
+bool redLineActivePrev = not na(redLine[1])
+bool confirmedWarningTrigger = redLineActive and not redLineActivePrev
+
+plotshape(earlyWarningTrigger, title = 'Early Warning Mark', location = location.abovebar, style = shape.triangleup, size = size.tiny, color = color.new(color.orange, 0), text = 'EARLY', textcolor = color.white)
+plotshape(confirmedWarningTrigger, title = 'Confirmed Warning Mark', location = location.abovebar, style = shape.triangledown, size = size.small, color = color.new(color.red, 0), text = 'WARNING', textcolor = color.white, offset = -1)
+
+// === Sell marker ===============================================
+float sellPivotPrice = ta.pivothigh(high, sellPivotLeft, sellPivotRight)
+bool sellPivotValid = not na(sellPivotPrice)
+float pivotHighClose = sellPivotValid ? close[sellPivotRight] : na
+float pivotEmaShort = sellPivotValid ? emaShort[sellPivotRight] : na
+float pivotEmaShortPrev = sellPivotValid ? emaShort[sellPivotRight + 1] : na
+float pivotAtr = sellPivotValid ? ta.atr(trailAtrLen)[sellPivotRight] : na
+float pivotRsi = sellPivotValid ? rsiValue[sellPivotRight] : na
+float pivotRsiPrev = sellPivotValid ? rsiValue[sellPivotRight + 1] : na
+float pivotRsiNext = sellPivotValid and sellPivotRight > 0 ? rsiValue[sellPivotRight - 1] : na
+float pivotSlope = sellPivotValid ? emaShortSlope[sellPivotRight] : na
+float pivotSlopePrev = sellPivotValid ? emaShortSlope[sellPivotRight + 1] : na
+float pivotVolume = sellPivotValid ? volume[sellPivotRight] : na
+float pivotVolumeSma = sellPivotValid ? volumeSma[sellPivotRight] : na
+float pivotRedLine = sellPivotValid ? redLine[sellPivotRight] : na
+
+bool redLineActivePivot = sellPivotValid and not na(pivotRedLine)
+bool priceExtendedPivot = sellPivotValid and not na(pivotAtr) and not na(pivotEmaShort) and sellPivotPrice - pivotEmaShort >= pivotAtr * sellExtensionAtrMult
+bool emaRollOverPivot = sellPivotValid and not na(pivotEmaShort) and not na(pivotEmaShortPrev) and pivotEmaShort <= pivotEmaShortPrev
+bool slopeCrossPivot = sellPivotValid and not na(pivotSlope) and pivotSlope <= sellSlopeBuffer and (not na(pivotSlopePrev) ? pivotSlopePrev > sellSlopeBuffer : true)
+bool rsiPeakPivot = sellPivotValid and not na(pivotRsi) and pivotRsi >= sellRsiThreshold and (not na(pivotRsiNext) ? pivotRsiNext <= pivotRsi - sellRsiRollBuffer : true)
+bool volumeFadePivot = sellPivotValid and not na(pivotVolume) and not na(pivotVolumeSma) and pivotVolume <= pivotVolumeSma * sellVolumeDropFactor
+
+int sellScore = 0
+sellScore := sellScore + (priceExtendedPivot ? 1 : 0)
+sellScore := sellScore + (rsiPeakPivot ? 1 : 0)
+sellScore := sellScore + (emaRollOverPivot or slopeCrossPivot ? 1 : 0)
+sellScore := sellScore + (volumeFadePivot ? 1 : 0)
+
+bool sellMarkCondition = sellPivotValid and not redLineActivePivot and sellScore >= sellConditionMinMatches
+
+plotshape(sellMarkCondition, title = 'Sell Exhaustion Mark', location = location.abovebar, style = shape.xcross, size = size.small, color = color.new(color.yellow, 0), text = 'SELL', textcolor = color.white, offset = -sellPivotRight)
+
+// === Buy marker =================================================
+float buyPivotPrice = ta.pivotlow(low, buyPivotLeft, buyPivotRight)
+bool buyPivotValid = not na(buyPivotPrice)
+float buyPivotRsi = buyPivotValid ? rsiValue[buyPivotRight] : na
+float buyPivotVolume = buyPivotValid ? volume[buyPivotRight] : na
+float buyPivotVolumeSma = buyPivotValid ? volumeSma[buyPivotRight] : na
+float buyPivotRedLine = buyPivotValid ? redLine[buyPivotRight] : na
+int buyPivotDeclineStreak = buyPivotValid ? nz(redLineDeclineStreak[buyPivotRight], 0) : 0
+
+bool pivotRedLineActive = buyPivotValid and not na(buyPivotRedLine)
+bool pivotOversold = buyPivotValid and not na(buyPivotRsi) and buyPivotRsi <= buyRsiThreshold
+bool pivotBelowRedLine = buyPivotValid and pivotRedLineActive and not na(buyPivotPrice) and buyPivotPrice < buyPivotRedLine
+bool pivotRedLineTrend = pivotRedLineActive and buyPivotDeclineStreak >= buyRedLineMinBars
+
+float atrCurrent = ta.atr(trailAtrLen)
+bool priceBreakoutNow = close >= (redLineActive and not na(redLine) ? redLine : emaShort) + atrCurrent * buyBreakoutAtrMult
+bool emaSlopePositive = emaShortSlope >= buySlopeBuffer
+bool priceAboveEma = close > emaShort and close > emaMid
+bool volumeKick = volume >= volumeSma * buyVolumeFactor
+bool rsiRecoveryNow = buyPivotValid and not na(buyPivotRsi) and rsiValue >= buyPivotRsi + buyRsiRecoveryBuffer and rsiValue >= buyRsiThreshold + buyRsiRecoveryBuffer
+bool recentRedLine = pivotRedLineActive and (redLineActive or barsSinceRedLineActive <= buyRedLineLookback)
+
+int buyScore = 0
+buyScore := buyScore + (priceBreakoutNow ? 1 : 0)
+buyScore := buyScore + (emaSlopePositive ? 1 : 0)
+buyScore := buyScore + (priceAboveEma ? 1 : 0)
+buyScore := buyScore + (volumeKick ? 1 : 0)
+buyScore := buyScore + (rsiRecoveryNow ? 1 : 0)
+
+bool buyMarkCondition = buyPivotValid and not inLong and reentryAllowed and pivotOversold and pivotBelowRedLine and pivotRedLineTrend and recentRedLine and buyScore >= buyConditionMinMatches and htfTrendAligned and trendStrengthAligned
+
+plotshape(buyMarkCondition, title = 'Buy Setup Mark', location = location.belowbar, size = size.small, color = color.new(color.lime, 0), text = 'BUY', textcolor = color.white, offset = -buyPivotRight)
