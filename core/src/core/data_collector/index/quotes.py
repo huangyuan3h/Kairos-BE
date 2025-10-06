@@ -23,10 +23,46 @@ Design notes
 """
 from __future__ import annotations
 
-from datetime import date, datetime
+import logging
+import random
+import time
+from datetime import date, datetime, timedelta
+from json import JSONDecodeError
 from typing import Dict, Iterable, List, Optional, Tuple
 
 import pandas as pd  # type: ignore[import]
+import requests
+from requests import Session
+from requests.exceptions import RequestException
+
+
+logger = logging.getLogger("core.data_collector.index.quotes")
+
+_YF_SESSION: Optional[Session] = None
+
+_EMPTY_YF_COLUMNS = ["date", "open", "high", "low", "close", "adj_close", "volume", "currency"]
+
+
+def _get_yfinance_session() -> Session:
+    """Return a cached requests session with headers accepted by Yahoo endpoints."""
+    global _YF_SESSION
+    if _YF_SESSION is None:
+        session = requests.Session()
+        session.headers.update(
+            {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                "Accept": "application/json, text/plain, */*",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Connection": "keep-alive",
+            }
+        )
+        _YF_SESSION = session
+    return _YF_SESSION
+
+
+def _empty_yf_frame() -> pd.DataFrame:
+    return pd.DataFrame(columns=_EMPTY_YF_COLUMNS)
 
 
 def get_index_source_mapping() -> Dict[str, Tuple[str, str]]:
@@ -47,6 +83,11 @@ def get_index_source_mapping() -> Dict[str, Tuple[str, str]]:
         "US:SPY": ("yfinance", "SPY"),
         "US:QQQ": ("yfinance", "QQQ"),
         "US:IWM": ("yfinance", "IWM"),
+        # Macro indicators & commodities
+        "GLOBAL:DXY": ("yfinance", "DX=F"),  # US Dollar Index futures (ICE)
+        "GLOBAL:WTI": ("yfinance", "CL=F"),  # WTI crude oil front-month futures
+        "GLOBAL:GOLD": ("yfinance", "GC=F"),  # COMEX gold futures
+        "GLOBAL:MOVE": ("yfinance", "MOVE"),  # ICE BofA MOVE Index
         # Volatility
         "GLOBAL:VIX": ("yfinance", "^VIX"),
     }
@@ -84,28 +125,103 @@ def _fetch_cn_index_akshare(source_symbol: str, start: date, end: date) -> pd.Da
 
 def _fetch_yf_symbol(ticker: str, start: date, end: date) -> pd.DataFrame:
     import yfinance as yf  # type: ignore[import]
+    session = _get_yfinance_session()
+    attempts = 3
+    last_error: Optional[Exception] = None
 
-    hist = yf.Ticker(ticker).history(start=start, end=end, interval="1d", auto_adjust=False)
-    if hist is None or hist.empty:
-        return pd.DataFrame(columns=["date", "open", "high", "low", "close", "adj_close", "volume", "currency"])
+    for attempt in range(1, attempts + 1):
+        try:
+            ticker_obj = yf.Ticker(ticker, session=session)
+            hist = ticker_obj.history(
+                start=start,
+                end=end + timedelta(days=1),
+                interval="1d",
+                auto_adjust=False,
+            )
 
-    hist = hist.reset_index().rename(columns={
-        "Date": "date",
-        "Open": "open",
-        "High": "high",
-        "Low": "low",
-        "Close": "close",
-        "Adj Close": "adj_close",
-        "Volume": "volume",
-    })
-    # Convert tz-aware datetime to date
-    if not pd.api.types.is_datetime64_any_dtype(hist["date"]):
-        hist["date"] = pd.to_datetime(hist["date"], errors="coerce")
-    hist = hist.dropna(subset=["date"]).copy()
-    hist["date"] = hist["date"].dt.date
-    # Currency not always available; leave None
-    hist["currency"] = pd.NA
-    return hist[["date", "open", "high", "low", "close", "adj_close", "volume", "currency"]]
+            if hist is None or hist.empty:
+                # Fallback to yf.download which uses a different endpoint
+                hist = yf.download(
+                    tickers=ticker,
+                    start=start.isoformat(),
+                    end=(end + timedelta(days=1)).isoformat(),
+                    interval="1d",
+                    auto_adjust=False,
+                    session=session,
+                    progress=False,
+                )
+
+            if hist is None or hist.empty:
+                logger.warning(
+                    {
+                        "ticker": ticker,
+                        "start": start.isoformat(),
+                        "end": end.isoformat(),
+                        "attempt": attempt,
+                    },
+                    "yfinance returned empty frame",
+                )
+                return _empty_yf_frame()
+
+            hist = hist.reset_index()
+            rename_map = {
+                "Date": "date",
+                "Datetime": "date",
+                "Open": "open",
+                "High": "high",
+                "Low": "low",
+                "Close": "close",
+                "Adj Close": "adj_close",
+                "AdjClose": "adj_close",
+                "Volume": "volume",
+            }
+            hist = hist.rename(columns=rename_map)
+
+            if "date" not in hist.columns:
+                logger.error({"ticker": ticker}, "yfinance output missing date column")
+                return _empty_yf_frame()
+
+            if not pd.api.types.is_datetime64_any_dtype(hist["date"]):
+                hist["date"] = pd.to_datetime(hist["date"], errors="coerce")
+            hist = hist.dropna(subset=["date"]).copy()
+            hist["date"] = hist["date"].dt.date
+
+            for col in ["open", "high", "low", "close", "adj_close", "volume"]:
+                if col in hist.columns:
+                    hist[col] = pd.to_numeric(hist[col], errors="coerce")
+
+            for col in _EMPTY_YF_COLUMNS:
+                if col not in hist.columns:
+                    hist[col] = pd.NA
+
+            hist["currency"] = pd.NA
+            hist = hist[_EMPTY_YF_COLUMNS]
+            return hist
+        except (JSONDecodeError, RequestException, ValueError, KeyError) as exc:
+            last_error = exc
+            logger.warning(
+                {
+                    "ticker": ticker,
+                    "attempt": attempt,
+                    "error": str(exc),
+                },
+                "yfinance fetch attempt failed",
+            )
+            if attempt < attempts:
+                sleep_s = 0.75 * attempt + random.uniform(0, 0.5)
+                time.sleep(sleep_s)
+                continue
+
+    logger.error(
+        {
+            "ticker": ticker,
+            "start": start.isoformat(),
+            "end": end.isoformat(),
+            "error": str(last_error) if last_error else "unknown",
+        },
+        "yfinance fetch failed after retries",
+    )
+    return _empty_yf_frame()
 
 
 def fetch_index_quotes(symbol: str, start: date, end: date) -> pd.DataFrame:
