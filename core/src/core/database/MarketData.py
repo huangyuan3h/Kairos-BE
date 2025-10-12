@@ -42,6 +42,7 @@ from typing import Any, Dict, List, Optional
 from decimal import Decimal
 
 import pandas as pd  # type: ignore[import]
+from boto3.dynamodb.conditions import Attr  # type: ignore[import]
 
 from .client import DynamoConfig, get_dynamo_table
 from .keys import (
@@ -67,6 +68,7 @@ class MarketData:
         config = DynamoConfig(table_name=table_name, region=region)
         table = get_dynamo_table(config)
         self._repo = DynamoRepository(table)
+        self._table = table
 
     def upsert_stock_catalog(self, df: pd.DataFrame) -> int:
         """Upsert stock catalog records from a DataFrame.
@@ -159,6 +161,63 @@ class MarketData:
             existing_cols = [c for c in columns if c in df.columns]
             return df[existing_cols]
         return df
+
+    def scan_stock_catalog(
+        self,
+        *,
+        asset_type: Optional[str] = None,
+        market: Optional[str] = None,
+        status: Optional[str] = None,
+        limit: Optional[int] = None,
+        projection: Optional[List[str]] = None,
+    ) -> List[Dict[str, Any]]:
+        """Scan the stock catalog when GSIs are unavailable.
+
+        Parameters
+        ----------
+        asset_type, market, status:
+            Optional filters applied using DynamoDB ``Attr`` expressions.
+        limit:
+            Maximum number of items to return.
+        projection:
+            Optional list of attribute names to include.
+        """
+
+        scan_kwargs: Dict[str, Any] = {}
+        filter_expr = None
+        if asset_type:
+            filter_expr = Attr("asset_type").eq(asset_type)
+        if market:
+            expr = Attr("market").eq(market)
+            filter_expr = expr if filter_expr is None else filter_expr & expr
+        if status:
+            expr = Attr("status").eq(status)
+            filter_expr = expr if filter_expr is None else filter_expr & expr
+        if filter_expr is not None:
+            scan_kwargs["FilterExpression"] = filter_expr
+        if projection:
+            projection_set = sorted(set(projection))
+            name_map = {f"#n{i}": attr for i, attr in enumerate(projection_set)}
+            scan_kwargs["ProjectionExpression"] = ",".join(name_map.keys())
+            scan_kwargs["ExpressionAttributeNames"] = name_map
+
+        items: List[Dict[str, Any]] = []
+        last_key: Optional[Dict[str, Any]] = None
+        remaining = limit
+        while True:
+            if last_key:
+                scan_kwargs["ExclusiveStartKey"] = last_key
+            response = self._table.scan(**scan_kwargs)
+            chunk = response.get("Items", [])
+            items.extend(chunk)
+            if remaining is not None:
+                if len(items) >= remaining:
+                    items = items[:remaining]
+                    break
+            last_key = response.get("LastEvaluatedKey")
+            if not last_key:
+                break
+        return items
 
     # ---------------- Quotes (daily OHLCV) ----------------
     def upsert_quotes_df(self, df: pd.DataFrame) -> int:

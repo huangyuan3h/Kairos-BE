@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Sequence
 import os
 from decimal import Decimal
+from datetime import date
 
 import pandas as pd  # type: ignore[import]
 
@@ -147,5 +148,113 @@ class StockData:
             return None
         d = items[0].get("date")
         return str(d) if d is not None else None
+
+    def get_quotes_df(
+        self,
+        symbol: str,
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        fields: Optional[Sequence[str]] = None,
+    ) -> pd.DataFrame:
+        """Fetch quotes for a single symbol as a DataFrame sorted by date."""
+
+        symbol_norm = str(symbol).strip().upper()
+        symbol_pk = make_gsi1pk_symbol(symbol_norm)
+        items = self._repo.query_by_symbol(
+            symbol_pk=symbol_pk,
+            begins_with_prefix="ENTITY#QUOTE",
+            scan_forward=True,
+        )
+
+        if not items:
+            columns = ["date", "symbol"] + list(fields or [])
+            return pd.DataFrame(columns=columns)
+
+        selected_fields: Sequence[str]
+        if fields:
+            selected_fields = list(dict.fromkeys(fields))  # deduplicate while preserving order
+        else:
+            selected_fields = [
+                "open",
+                "high",
+                "low",
+                "close",
+                "adj_close",
+                "volume",
+                "turnover_amount",
+                "turnover_rate",
+                "vwap",
+                "adj_factor",
+            ]
+
+        def _convert(value: Any) -> Any:
+            if isinstance(value, Decimal):
+                return float(value)
+            if isinstance(value, list):
+                return [_convert(v) for v in value]
+            if isinstance(value, dict):
+                return {k: _convert(v) for k, v in value.items()}
+            return value
+
+        rows: List[Dict[str, Any]] = []
+        for item in items:
+            dt_raw = item.get("date")
+            if not dt_raw:
+                continue
+            try:
+                dt = date.fromisoformat(str(dt_raw))
+            except ValueError:
+                continue
+            if start_date and dt < start_date:
+                continue
+            if end_date and dt > end_date:
+                continue
+
+            row: Dict[str, Any] = {"date": dt, "symbol": symbol_norm}
+            for fld in selected_fields:
+                if fld in item:
+                    row[fld] = _convert(item[fld])
+            rows.append(row)
+
+        if not rows:
+            columns = ["date", "symbol"] + list(selected_fields)
+            return pd.DataFrame(columns=columns)
+
+        df = pd.DataFrame(rows)
+        df.sort_values("date", inplace=True)
+        return df.reset_index(drop=True)
+
+    def get_price_panel(
+        self,
+        symbols: Iterable[str],
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        fields: Optional[Sequence[str]] = None,
+    ) -> pd.DataFrame:
+        """Return a multi-index DataFrame of prices for the provided symbols."""
+
+        frames: List[pd.DataFrame] = []
+        for sym in symbols:
+            df_sym = self.get_quotes_df(sym, start_date=start_date, end_date=end_date, fields=fields)
+            if not df_sym.empty:
+                frames.append(df_sym)
+
+        if not frames:
+            selected_fields = list(dict.fromkeys(fields or [
+                "open",
+                "high",
+                "low",
+                "close",
+                "adj_close",
+                "volume",
+            ]))
+            empty = pd.DataFrame(columns=["date", "symbol"] + selected_fields)
+            return empty.set_index(["date", "symbol"])
+
+        combined = pd.concat(frames, ignore_index=True)
+        combined["date"] = pd.to_datetime(combined["date"])
+        combined["symbol"] = combined["symbol"].astype(str)
+        combined = combined.set_index(["date", "symbol"]).sort_index()
+        return combined
 
 

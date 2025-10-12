@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Sequence
 from decimal import Decimal
 
 import boto3  # type: ignore
@@ -72,5 +72,88 @@ class Company:
             ScanIndexForward=True,
         )
         return resp.get("Items", [])  # type: ignore[return-value]
+
+    def batch_get_companies(
+        self,
+        symbols: Iterable[str],
+        attributes: Optional[Sequence[str]] = None,
+        consistent_read: bool = False,
+    ) -> Dict[str, Dict[str, Any]]:
+        """Fetch multiple company records efficiently using DynamoDB batch_get_item.
+
+        Parameters
+        ----------
+        symbols:
+            Iterable of company primary keys (e.g., SH600519).
+        attributes:
+            Optional subset of attributes to project. The partition key ``pk`` is always
+            returned regardless of projection.
+        consistent_read:
+            When True, issues strongly consistent reads. Defaults to eventually
+            consistent for lower latency/cost.
+        """
+
+        norm_symbols = [str(s).strip().upper() for s in symbols if str(s).strip()]
+        if not norm_symbols:
+            return {}
+
+        unique_symbols = list(dict.fromkeys(norm_symbols))
+
+        def _from_dynamo(value: Any) -> Any:
+            if isinstance(value, Decimal):
+                return float(value)
+            if isinstance(value, list):
+                return [_from_dynamo(v) for v in value]
+            if isinstance(value, dict):
+                return {k: _from_dynamo(v) for k, v in value.items()}
+            return value
+
+        projection_expression: Optional[str] = None
+        if attributes:
+            # Ensure primary key is always included in projection
+            fields = {"pk"}
+            fields.update(str(attr) for attr in attributes if attr)
+            projection_expression = ",".join(sorted(fields))
+
+        def _chunk(seq: List[str], size: int = 100) -> Iterable[List[str]]:
+            for i in range(0, len(seq), size):
+                yield seq[i : i + size]
+
+        results: Dict[str, Dict[str, Any]] = {}
+
+        for chunk in _chunk(unique_symbols):
+            keys = [{"pk": sym} for sym in chunk]
+            request: Dict[str, Any] = {self._table_name: {"Keys": keys, "ConsistentRead": consistent_read}}
+            if projection_expression:
+                request[self._table_name]["ProjectionExpression"] = projection_expression
+
+            response = self._dynamo.batch_get_item(RequestItems=request)
+
+            items = response.get("Responses", {}).get(self._table_name, [])
+            for item in items:
+                pk = str(item.get("pk", "")).strip().upper()
+                if not pk:
+                    continue
+                results[pk] = _from_dynamo(item)
+
+            unprocessed = response.get("UnprocessedKeys", {}).get(self._table_name, {}).get("Keys", [])
+            while unprocessed:
+                retry_request: Dict[str, Any] = {
+                    self._table_name: {"Keys": unprocessed, "ConsistentRead": consistent_read}
+                }
+                if projection_expression:
+                    retry_request[self._table_name]["ProjectionExpression"] = projection_expression
+                retry_response = self._dynamo.batch_get_item(RequestItems=retry_request)
+                items_retry = retry_response.get("Responses", {}).get(self._table_name, [])
+                for item in items_retry:
+                    pk = str(item.get("pk", "")).strip().upper()
+                    if not pk:
+                        continue
+                    results[pk] = _from_dynamo(item)
+                unprocessed = (
+                    retry_response.get("UnprocessedKeys", {}).get(self._table_name, {}).get("Keys", [])
+                )
+
+        return results
 
 
