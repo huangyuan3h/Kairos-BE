@@ -217,7 +217,7 @@ int barsSinceRedLineActiveRaw = ta.barssince(redLineActive)
 int barsSinceRedLineActive = na(barsSinceRedLineActiveRaw) ? 100000 : barsSinceRedLineActiveRaw
 
 // === Plot ======================================================
-plot(redLine, title = 'Red Line', color = color.new(color.red, 0), linewidth = 3, style = plot.style_linebr)
+plot(redLine, title = 'Red Line', color = color.new(color.orange, 0), linewidth = 3, style = plot.style_linebr)
 
 // === Warning markers ===========================================
 float emaDiff = emaShort - emaMid
