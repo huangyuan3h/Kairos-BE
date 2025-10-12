@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import date
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 import math
 import warnings
 
@@ -18,10 +18,10 @@ class SwingFalconStrategy(Strategy):
     max_positions: int = 10
     min_market_cap: Optional[float] = 4_000_000_000.0
     max_pe: Optional[float] = 30.0
-    min_eps_growth: Optional[float] = 0.10
-    min_roe: Optional[float] = 0.15
-    max_beta: Optional[float] = 1.5
-    min_beta: Optional[float] = 1.0
+    min_eps_growth: Optional[float] = 0.0
+    min_roe: Optional[float] = 0.0
+    max_beta: Optional[float] = 2.0
+    min_beta: Optional[float] = 0.5
     min_div_yield: Optional[float] = None
     min_avg_volume: Optional[float] = None
 
@@ -44,6 +44,7 @@ class SwingFalconStrategy(Strategy):
 
     _eligible_symbols: List[str] = field(default_factory=list, init=False)
     _indicator_frames: Dict[str, pd.DataFrame] = field(default_factory=dict, init=False)
+    _latest_indicators: Dict[str, Dict[str, float]] = field(default_factory=dict, init=False)
 
     def initialize(self, context: StrategyContext) -> None:
         """Pre-compute indicators and eligible symbols.
@@ -99,6 +100,11 @@ class SwingFalconStrategy(Strategy):
 
         self._eligible_symbols = eligible
         self._indicator_frames = indicator_frames
+        self._latest_indicators = {
+            symbol: self._extract_latest_metrics(frame)
+            for symbol, frame in indicator_frames.items()
+            if not frame.empty
+        }
 
     def on_rebalance(
         self,
@@ -185,6 +191,21 @@ class SwingFalconStrategy(Strategy):
             return False
 
         return True
+
+    def latest_indicators(self) -> Dict[str, Dict[str, float]]:
+        return dict(self._latest_indicators)
+
+    @staticmethod
+    def _extract_latest_metrics(frame: pd.DataFrame) -> Dict[str, float]:
+        latest = frame.iloc[-1]
+        return {
+            "close": float(latest.get("close", 0.0)),
+            "ema_short": float(latest.get("ema_short", 0.0)),
+            "ema_mid": float(latest.get("ema_mid", 0.0)),
+            "ema_long": float(latest.get("ema_long", 0.0)),
+            "rsi": float(latest.get("rsi", 0.0)),
+            "volume": float(latest.get("volume", 0.0)),
+        }
 
     def _prepare_symbol_frame(self, price_history: pd.DataFrame, symbol: str) -> Optional[pd.DataFrame]:
         try:

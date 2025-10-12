@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Optional
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from core.database import Company, MarketData
 
@@ -17,11 +17,13 @@ class SwingFalconUniverseSelector:
     status: str = "active"
     limit: int = 100
     filters: Dict[str, Any] = field(default_factory=dict)
+    _last_evaluation: List[Dict[str, Any]] = field(default_factory=list, init=False)
 
     def select(self) -> List[str]:
         candidates = self._load_candidates()
         if not candidates:
             return []
+        self._last_evaluation = []
         fundamentals = self.company.batch_get_companies(
             [row["symbol"] for row in candidates],
             attributes=[
@@ -42,7 +44,9 @@ class SwingFalconUniverseSelector:
             fundamentals_row = fundamentals.get(symbol)
             if not fundamentals_row:
                 continue
-            if self._passes_filters(fundamentals_row):
+            passed, detail = self._evaluate_row(symbol, fundamentals_row)
+            self._last_evaluation.append(detail)
+            if passed:
                 selected.append(symbol)
             if self.limit and len(selected) >= self.limit:
                 break
@@ -67,7 +71,12 @@ class SwingFalconUniverseSelector:
             result.append({"symbol": symbol})
         return result
 
-    def _passes_filters(self, row: Dict[str, Any]) -> bool:
+    def selection_summary(self, passed_only: bool = False) -> List[Dict[str, Any]]:
+        if passed_only:
+            return [row for row in self._last_evaluation if row.get("passed")]
+        return list(self._last_evaluation)
+
+    def _evaluate_row(self, symbol: str, row: Dict[str, Any]) -> Tuple[bool, Dict[str, Any]]:
         min_market_cap = float(self.filters.get("market_cap_min", 4_000_000_000))
         max_pe = float(self.filters.get("pe_max", 30.0))
         min_eps_growth = float(self.filters.get("eps_growth_min", 0.10))
@@ -86,27 +95,30 @@ class SwingFalconUniverseSelector:
                 return None
 
         market_cap = _value("market_cap")
-        if market_cap is None or market_cap < min_market_cap:
-            return False
-
         pe = _value("pe_ttm")
-        if pe is None or pe > max_pe:
-            return False
-
         eps_growth = _value("eps_growth_ttm_yoy")
-        if eps_growth is None or eps_growth < min_eps_growth:
-            return False
-
         roe = _value("roe_ttm")
-        if roe is None or roe < min_roe:
-            return False
-
         revenue_growth = _value("revenue_growth_ttm_yoy")
-        if revenue_growth is None or revenue_growth < min_revenue_growth:
-            return False
-
         beta = _value("beta_5y")
-        if beta is None or beta < min_beta or beta > max_beta:
-            return False
 
-        return True
+        detail: Dict[str, Any] = {
+            "symbol": symbol,
+            "market_cap": market_cap,
+            "pe_ttm": pe,
+            "eps_growth_ttm_yoy": eps_growth,
+            "roe_ttm": roe,
+            "revenue_growth_ttm_yoy": revenue_growth,
+            "beta_5y": beta,
+        }
+
+        checks = {
+            "market_cap_pass": market_cap is not None and market_cap >= min_market_cap,
+            "pe_pass": pe is not None and pe <= max_pe,
+            "eps_growth_pass": eps_growth is not None and eps_growth >= min_eps_growth,
+            "roe_pass": roe is not None and roe >= min_roe,
+            "revenue_growth_pass": revenue_growth is not None and revenue_growth >= min_revenue_growth,
+            "beta_pass": beta is not None and min_beta <= beta <= max_beta,
+        }
+        detail.update(checks)
+        detail["passed"] = all(checks.values())
+        return detail["passed"], detail

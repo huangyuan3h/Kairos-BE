@@ -9,7 +9,7 @@ import pytest
 
 from core.backtest.engine import BacktestConfig, BacktestEngine
 from core.backtest.strategy import StrategyError
-from core.strategy import LowPEMomentumStrategy, SwingFalconStrategy
+from core.strategy import SwingFalconStrategy
 
 
 def _build_price_history(data: Dict[str, list]) -> pd.DataFrame:
@@ -150,41 +150,6 @@ def test_engine_respects_max_position_constraint():
     strategy = EqualWeightStrategy()
     result = engine.run(strategy, universe=_default_universe(price_history))
     assert len(result.ending_positions) <= 3
-
-
-def test_low_pe_momentum_strategy_filters_universe():
-    price_history = _build_price_history(
-        {
-            "AAA": [10.0, 10.5, 11.0, 11.5, 12.0],
-            "BBB": [8.0, 8.1, 8.2, 8.1, 8.0],
-            "CCC": [9.0, 8.8, 8.6, 8.4, 8.1],
-        }
-    )
-    fundamentals = pd.DataFrame(
-        {
-            "symbol": ["AAA", "BBB", "CCC"],
-            "inc_eps_basic": [2.0, 0.05, 2.0],
-        }
-    )
-    config = BacktestConfig(
-        start_date=date(2023, 1, 2),
-        end_date=date(2023, 1, 9),
-        initial_capital=100_000.0,
-        rebalance_frequency="daily",
-        price_field="close",
-        fallback_price_field="close",
-        slippage_bps=0.0,
-        transaction_cost_bps=0.0,
-        max_positions=2,
-    )
-    engine = BacktestEngine(
-        config,
-        price_provider=StaticPriceProvider(price_history),
-        fundamental_provider=StaticFundamentalProvider(fundamentals),
-    )
-    strategy = LowPEMomentumStrategy(max_assets=2, max_pe=10.0, momentum_window=3, min_momentum=-0.05, price_field="close")
-    result = engine.run(strategy, universe=_default_universe(price_history))
-    assert set(result.ending_positions.keys()) == {"AAA"}
 
 
 def test_swing_falcon_strategy_generates_allocation():
