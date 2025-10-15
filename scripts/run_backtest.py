@@ -34,7 +34,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--market", default="CN_A", help="Market identifier for universe selection")
     parser.add_argument("--asset-type", default="stock", help="Asset type for universe selection")
     parser.add_argument("--status", default="active", help="Listing status filter for universe selection")
-    parser.add_argument("--universe-size", type=int, default=100, help="Max number of symbols in universe")
+    parser.add_argument("--universe-size", type=int, default=20, help="Max number of symbols in universe")
     parser.add_argument(
         "--start-date",
         type=lambda s: datetime.strptime(s, "%Y-%m-%d").date(),
@@ -74,8 +74,9 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--filter-eps-growth-min", type=float, default=0.0)
     parser.add_argument("--filter-roe-min", type=float, default=0.0)
     parser.add_argument("--filter-revenue-growth-min", type=float, default=0.0)
-    parser.add_argument("--filter-beta-min", type=float, default=0.5)
-    parser.add_argument("--filter-beta-max", type=float, default=2.0)
+    parser.add_argument("--filter-beta-min", type=float, default=None)
+    parser.add_argument("--filter-beta-max", type=float, default=None)
+    parser.add_argument("--min-universe-size", type=int, default=10, help="Abort if selected symbols fewer than this")
     return parser.parse_args()
 
 
@@ -136,7 +137,7 @@ def _serialize_trades(trades: Iterable) -> List[dict]:
     return serialized
 
 
-def _write_reports(output_dir: Path, result) -> None:
+def _write_reports(output_dir: Path, result, strategy=None) -> None:
     summary_path = output_dir / "summary.json"
     trades_path = output_dir / "trades.csv"
     equity_path = output_dir / "equity_curve.csv"
@@ -153,7 +154,9 @@ def _write_reports(output_dir: Path, result) -> None:
     summary_payload["daily_returns"] = None
     summary_payload["daily_turnover"] = None
     summary_payload["trades"] = _serialize_trades(result.trades)
-    latest_indicators = strategy.latest_indicators()
+    latest_indicators = {}
+    if strategy is not None and hasattr(strategy, "latest_indicators"):
+        latest_indicators = strategy.latest_indicators()
 
     summary_payload["ending_positions"] = {
         symbol: {
@@ -181,6 +184,21 @@ def _write_reports(output_dir: Path, result) -> None:
         }
     )
     equity_df.to_csv(equity_path, index=False)
+
+    signals_rows = []
+    for symbol, view in result.ending_positions.items():
+        row = {
+            "symbol": symbol,
+            "quantity": view.quantity,
+            "avg_price": view.avg_price,
+            "market_price": view.market_price,
+            "market_value": view.market_value,
+            "weight": view.market_value / result.equity_curve.iloc[-1] if result.equity_curve.iloc[-1] else 0.0,
+        }
+        if latest_indicators and symbol in latest_indicators:
+            row.update(latest_indicators[symbol])
+        signals_rows.append(row)
+    pd.DataFrame(signals_rows).to_csv(output_dir / "signals_latest.csv", index=False)
 
 
 def _print_summary(result) -> None:
@@ -221,6 +239,9 @@ def main() -> None:
     universe_selector = SwingFalconUniverseSelector(
         market_data=market_data,
         company=company,
+        stock_data=stock_data,
+        price_start=args.start_date,
+        price_end=args.end_date,
         market=args.market,
         asset_type=args.asset_type,
         status=args.status,
@@ -311,36 +332,33 @@ def main() -> None:
         try:
             universe_symbols = universe_selector.select()
             summary_rows = universe_selector.selection_summary()
-            print(
-                f"[universe] selector candidates={len(summary_rows)} passed="
-                f"{len([row for row in summary_rows if row.get('passed')])}"
-            )
+            passed_count = len([row for row in summary_rows if row.get("passed")])
+            print(f"[universe] selector candidates={len(summary_rows)} passed={passed_count}")
         except Exception as selector_exc:  # noqa: BLE001
             print(f"[universe] selector failed: {selector_exc}. Falling back to legacy provider.")
             summary_rows = []
             universe_symbols = list(universe_provider(config))
-        if not universe_symbols:
-            universe_symbols = list(universe_provider(config))
-            summary_rows = []
-
-    if not universe_symbols:
-        raise RuntimeError(
-            "Universe is empty. Please provide --universe-list/--universe-file or ensure the "
-            "MarketData/Company indexes exist."
-        )
 
     output_dir.mkdir(parents=True, exist_ok=True)
     universe_dump_path = output_dir / "universe_selection.csv"
-    if args.universe_cache:
-        pd.DataFrame({"symbol": universe_symbols}).to_csv(args.universe_cache, index=False)
-    elif summary_rows:
-        pd.DataFrame(summary_rows).to_csv(universe_dump_path, index=False)
+    if summary_rows:
+        universe_df = pd.DataFrame(summary_rows)
     else:
-        pd.DataFrame({"symbol": universe_symbols}).to_csv(universe_dump_path, index=False)
+        universe_df = pd.DataFrame({"symbol": universe_symbols})
+
+    if args.universe_cache:
+        universe_df.to_csv(args.universe_cache, index=False)
+    universe_df.to_csv(universe_dump_path, index=False)
+
+    if len(universe_symbols) < args.min_universe_size:
+        raise RuntimeError(
+            "Universe size is below threshold. Adjust filters or universe-size; details recorded in "
+            f"{universe_dump_path}"
+        )
 
     result = engine.run(strategy, universe=universe_symbols)
 
-    _write_reports(output_dir, result)
+    _write_reports(output_dir, result, strategy=strategy)
     _print_summary(result)
     print(f"Reports written to: {output_dir.resolve()}")
 

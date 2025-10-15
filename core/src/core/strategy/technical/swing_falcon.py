@@ -20,8 +20,8 @@ class SwingFalconStrategy(Strategy):
     max_pe: Optional[float] = 30.0
     min_eps_growth: Optional[float] = 0.0
     min_roe: Optional[float] = 0.0
-    max_beta: Optional[float] = 2.0
-    min_beta: Optional[float] = 0.5
+    max_beta: Optional[float] = None
+    min_beta: Optional[float] = None
     min_div_yield: Optional[float] = None
     min_avg_volume: Optional[float] = None
 
@@ -158,37 +158,40 @@ class SwingFalconStrategy(Strategy):
                 return None
 
         market_cap = _value("market_cap")
-        if self.min_market_cap is not None and (market_cap is None or market_cap < self.min_market_cap):
-            return False
+        if self.min_market_cap is not None:
+            if market_cap is not None and market_cap < self.min_market_cap:
+                return False
 
         pe = _value("pe_ttm")
-        if self.max_pe is not None and (pe is None or pe > self.max_pe):
-            return False
+        if self.max_pe is not None:
+            if pe is not None and pe > self.max_pe:
+                return False
 
         eps_growth = _value("eps_growth_ttm_yoy")
-        if self.min_eps_growth is not None and (eps_growth is None or eps_growth < self.min_eps_growth):
-            return False
+        if self.min_eps_growth is not None:
+            if eps_growth is not None and eps_growth < self.min_eps_growth:
+                return False
 
         roe = _value("roe_ttm")
-        if self.min_roe is not None and (roe is None or roe < self.min_roe):
-            return False
+        if self.min_roe is not None:
+            if roe is not None and roe < self.min_roe:
+                return False
 
         beta = _value("beta_5y")
-        if beta is not None:
-            if self.min_beta is not None and beta < self.min_beta:
-                return False
-            if self.max_beta is not None and beta > self.max_beta:
-                return False
-        elif self.min_beta is not None or self.max_beta is not None:
+        if self.min_beta is not None and beta is not None and beta < self.min_beta:
+            return False
+        if self.max_beta is not None and beta is not None and beta > self.max_beta:
             return False
 
         div_yield = _value("dividend_yield_ttm")
-        if self.min_div_yield is not None and (div_yield is None or div_yield < self.min_div_yield):
-            return False
+        if self.min_div_yield is not None:
+            if div_yield is not None and div_yield < self.min_div_yield:
+                return False
 
         avg_volume = _value("avg_volume")
-        if self.min_avg_volume is not None and (avg_volume is None or avg_volume < self.min_avg_volume):
-            return False
+        if self.min_avg_volume is not None:
+            if avg_volume is not None and avg_volume < self.min_avg_volume:
+                return False
 
         return True
 

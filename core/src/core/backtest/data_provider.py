@@ -86,7 +86,11 @@ class DynamoFundamentalDataProvider:
         df = pd.DataFrame.from_dict(records, orient="index")
         if "pk" in df.columns:
             df.rename(columns={"pk": "symbol"}, inplace=True)
+        # Deduplicate columns that share the same name (Dynamo items often have both pk and symbol)
+        if df.columns.duplicated().any():
+            df = df.loc[:, ~df.columns.duplicated()]
         if "symbol" not in df.columns:
             df["symbol"] = df.index
         df.index = df["symbol"].astype(str)
+        df.index.name = "symbol"
         return df
