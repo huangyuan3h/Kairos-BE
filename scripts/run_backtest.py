@@ -9,7 +9,7 @@ import os
 from dataclasses import asdict
 from datetime import date, datetime, timedelta
 from pathlib import Path
-from typing import Iterable, List, Sequence
+from typing import Iterable, List, Sequence, Optional
 
 import pandas as pd
 
@@ -49,8 +49,20 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--initial-capital", type=float, default=1_000_000.0)
     parser.add_argument("--rebalance", default="weekly", help="Rebalance frequency (daily|weekly|monthly|Nd)")
-    parser.add_argument("--output-dir", default="backtest_output", help="Directory for generated reports")
+    parser.add_argument(
+        "--output-dir",
+        default="backtest/reports",
+        help="Directory for generated reports (defaults to backtest/reports)",
+    )
     parser.add_argument("--max-positions", type=int, default=25, help="Max concurrent holdings for strategy")
+    parser.add_argument(
+        "--report-file",
+        default=None,
+        help=(
+            "Optional filename for the aggregated JSON report. If omitted, a timestamped name "
+            "<Strategy>_<YYYYmmddHHMMSS>.json is used."
+        ),
+    )
     parser.add_argument("--price-field", default="adj_close", help="Preferred price field")
     parser.add_argument("--fallback-price-field", default="close", help="Fallback price field")
     parser.add_argument("--universe-cache", default=None, help="Optional CSV to dump selected universe")
@@ -137,11 +149,13 @@ def _serialize_trades(trades: Iterable) -> List[dict]:
     return serialized
 
 
-def _write_reports(output_dir: Path, result, strategy=None) -> None:
-    summary_path = output_dir / "summary.json"
-    trades_path = output_dir / "trades.csv"
-    equity_path = output_dir / "equity_curve.csv"
-
+def _write_report(
+    output_dir: Path,
+    result,
+    strategy=None,
+    universe_df: Optional[pd.DataFrame] = None,
+    report_filename: Optional[str] = None,
+) -> Path:
     summary_payload = result.to_dict()
     summary_payload["config"] = asdict(result.config)
     if "start_date" in summary_payload["config"]:
@@ -154,9 +168,10 @@ def _write_reports(output_dir: Path, result, strategy=None) -> None:
     summary_payload["daily_returns"] = None
     summary_payload["daily_turnover"] = None
     summary_payload["trades"] = _serialize_trades(result.trades)
+
     latest_indicators = {}
     if strategy is not None and hasattr(strategy, "latest_indicators"):
-        latest_indicators = strategy.latest_indicators()
+        latest_indicators = strategy.latest_indicators() or {}
 
     summary_payload["ending_positions"] = {
         symbol: {
@@ -169,13 +184,7 @@ def _write_reports(output_dir: Path, result, strategy=None) -> None:
         for symbol, view in result.ending_positions.items()
     }
 
-    with summary_path.open("w", encoding="utf-8") as fp:
-        json.dump(summary_payload, fp, indent=2)
-
-    trades_df = pd.DataFrame(summary_payload["trades"])
-    trades_df.to_csv(trades_path, index=False)
-
-    equity_df = pd.DataFrame(
+    equity_frame = pd.DataFrame(
         {
             "date": result.equity_curve.index.strftime("%Y-%m-%d"),
             "equity": result.equity_curve.values,
@@ -183,7 +192,6 @@ def _write_reports(output_dir: Path, result, strategy=None) -> None:
             "turnover": result.daily_turnover.reindex(result.equity_curve.index, fill_value=0.0).values,
         }
     )
-    equity_df.to_csv(equity_path, index=False)
 
     signals_rows = []
     for symbol, view in result.ending_positions.items():
@@ -198,7 +206,26 @@ def _write_reports(output_dir: Path, result, strategy=None) -> None:
         if latest_indicators and symbol in latest_indicators:
             row.update(latest_indicators[symbol])
         signals_rows.append(row)
-    pd.DataFrame(signals_rows).to_csv(output_dir / "signals_latest.csv", index=False)
+
+    report_data = {
+        "generated_at": datetime.utcnow().isoformat(),
+        "strategy": {
+            "name": getattr(strategy, "__class__", type("", (), {})).__name__
+            if strategy is not None
+            else "UnknownStrategy",
+            "summary": summary_payload,
+            "equity_curve": equity_frame.to_dict(orient="records"),
+            "trades": summary_payload["trades"],
+            "signals": signals_rows,
+            "universe": universe_df.to_dict(orient="records") if universe_df is not None else [],
+        },
+    }
+    if report_filename is None:
+        strategy_name = report_data["strategy"]["name"] or "UnknownStrategy"
+        report_filename = f"{strategy_name}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.json"
+    report_path = output_dir / report_filename
+    report_path.write_text(json.dumps(report_data, indent=2), encoding="utf-8")
+    return report_path
 
 
 def _print_summary(result) -> None:
@@ -341,10 +368,7 @@ def main() -> None:
 
     output_dir.mkdir(parents=True, exist_ok=True)
     universe_dump_path = output_dir / "universe_selection.csv"
-    if summary_rows:
-        universe_df = pd.DataFrame(summary_rows)
-    else:
-        universe_df = pd.DataFrame({"symbol": universe_symbols})
+    universe_df = pd.DataFrame(summary_rows) if summary_rows else pd.DataFrame({"symbol": universe_symbols})
 
     if args.universe_cache:
         universe_df.to_csv(args.universe_cache, index=False)
@@ -358,9 +382,15 @@ def main() -> None:
 
     result = engine.run(strategy, universe=universe_symbols)
 
-    _write_reports(output_dir, result, strategy=strategy)
+    report_path = _write_report(
+        output_dir,
+        result,
+        strategy=strategy,
+        universe_df=universe_df,
+        report_filename=args.report_file,
+    )
     _print_summary(result)
-    print(f"Reports written to: {output_dir.resolve()}")
+    print(f"Report saved to: {report_path}")
 
 
 if __name__ == "__main__":  # pragma: no cover

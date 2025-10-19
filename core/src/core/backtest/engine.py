@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import date
 from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 import math
@@ -113,8 +113,17 @@ class BacktestResult:
     ending_cash: float
 
     def to_dict(self) -> Dict[str, object]:
+        config_dict = asdict(self.config)
+        start_date = config_dict.get("start_date")
+        end_date = config_dict.get("end_date")
+        if isinstance(start_date, date):
+            config_dict["start_date"] = start_date.isoformat()
+        if isinstance(end_date, date):
+            config_dict["end_date"] = end_date.isoformat()
         return {
-            "config": self.config,
+            "config": config_dict,
+            "start_date": self.config.start_date.isoformat(),
+            "end_date": self.config.end_date.isoformat(),
             "total_return": self.total_return,
             "annualized_return": self.annualized_return,
             "max_drawdown": self.max_drawdown,
@@ -134,6 +143,10 @@ class BacktestResult:
                 }
                 for symbol, view in self.ending_positions.items()
             },
+            "equity_curve": self.equity_curve.to_dict(),
+            "daily_returns": self.daily_returns.to_dict(),
+            "daily_turnover": self.daily_turnover.to_dict(),
+            "trades": [asdict(trade) for trade in self.trades],
         }
 
 

@@ -3,6 +3,7 @@ const tseslint = require("@typescript-eslint/eslint-plugin");
 const tsparser = require("@typescript-eslint/parser");
 const prettierConfig = require("eslint-config-prettier");
 const prettierPlugin = require("eslint-plugin-prettier");
+const path = require("path");
 
 module.exports = [
   // Base ESLint recommended rules
@@ -66,12 +67,46 @@ module.exports = [
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",
+      globals: {
+        module: "readonly",
+        require: "readonly",
+        process: "readonly",
+      },
     },
     rules: {
       "prefer-const": "error",
       "no-var": "error",
       "object-shorthand": "error",
       "prefer-arrow-callback": "error",
+    },
+  },
+
+  // Backtest dashboard (Next.js) project
+  {
+    files: ["backtest/**/*.{ts,tsx}"],
+    ignores: ["backtest/node_modules/**", "backtest/.next/**"],
+    languageOptions: {
+      parser: tsparser,
+      parserOptions: {
+        project: "./tsconfig.json",
+        tsconfigRootDir: path.join(__dirname, "backtest"),
+        ecmaVersion: 2022,
+        sourceType: "module",
+      },
+      globals: {
+        window: "readonly",
+        document: "readonly",
+        process: "readonly",
+      },
+    },
+    plugins: {
+      "@typescript-eslint": tseslint,
+      prettier: prettierPlugin,
+    },
+    rules: {
+      ...tseslint.configs.recommended.rules,
+      "prettier/prettier": "error",
+      "@typescript-eslint/no-unused-vars": ["error", { argsIgnorePattern: "^_" }],
     },
   },
 
@@ -183,6 +218,9 @@ module.exports = [
       "sst.config.ts",
       "*.config.ts",
       "*.config.js",
+      "backtest/next-env.d.ts",
+      "backtest/node_modules/**",
+      "backtest/.next/**",
       // Project-level configs not covered above
       ".prettierrc.js",
     ],
