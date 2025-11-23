@@ -147,9 +147,13 @@ export class MarketDataRepository {
       ":pk": gsi2pk,
       ":entity": "ENTITY#CATALOG",
     };
-    const names: Record<string, string> = { ...ATTRIBUTE_NAMES };
+    const names: Record<string, string> = {
+      "#name": "name",
+      "#status": "status",
+    };
 
     if (params.q) {
+      names["#symbol"] = "symbol";
       values[":q"] = params.q;
       values[":qu"] = params.q.toUpperCase();
       values[":ql"] = params.q.toLowerCase();
@@ -162,6 +166,7 @@ export class MarketDataRepository {
     }
 
     if (params.assetType) {
+      names["#asset_type"] = "asset_type";
       values[":assetType"] = params.assetType;
       filterParts.push("#asset_type = :assetType");
     }
