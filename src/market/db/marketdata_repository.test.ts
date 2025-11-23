@@ -8,9 +8,27 @@ function createRepo() {
   return new MarketDataRepository({ tableName: "Dummy", client });
 }
 
-describe("MarketDataRepository.queryCatalogByMarketFuzzy", () => {
+describe("MarketDataRepository", () => {
   beforeEach(() => {
     mockSend.mockReset();
+  });
+
+  test("queryCatalogBySymbolExact uses bySymbol index", async () => {
+    mockSend.mockResolvedValueOnce({
+      Items: [{ symbol: "SH600988", name: "China Railway" }],
+    });
+    const repo = createRepo();
+    const items = await repo.queryCatalogBySymbolExact({
+      symbol: "sh600988",
+      limit: 2,
+    });
+    const sent = mockSend.mock.calls[0]?.[0] as { input: Record<string, any> };
+    expect(sent.input.IndexName).toBe("bySymbol");
+    expect(sent.input.ExpressionAttributeValues).toEqual({
+      ":pk": "SYMBOL#SH600988",
+      ":entity": "ENTITY#CATALOG",
+    });
+    expect(items[0]?.symbol).toBe("SH600988");
   });
 
   test("paginates until limit is satisfied or no cursor remains", async () => {

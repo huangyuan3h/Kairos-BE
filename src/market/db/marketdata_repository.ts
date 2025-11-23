@@ -11,6 +11,13 @@ const MIN_LIMIT = 1;
 const MAX_LIMIT = 50;
 const DEFAULT_MAX_QUERY_PAGES = 3;
 const MAX_QUERY_PAGES = 5;
+const PROJECTION =
+  "pk, gsi1pk, symbol, #name, exchange, asset_type, market, #status";
+const ATTRIBUTE_NAMES = {
+  "#name": "name",
+  "#symbol": "symbol",
+  "#status": "status",
+};
 
 export interface CatalogItem {
   symbol: string;
@@ -37,6 +44,37 @@ export class MarketDataRepository {
   }
 
   /**
+   * Query catalog entries directly by canonical symbol via bySymbol GSI.
+   */
+  async queryCatalogBySymbolExact(params: {
+    symbol: string;
+    limit: number;
+  }): Promise<CatalogItem[]> {
+    const symbol = String(params.symbol ?? "")
+      .trim()
+      .toUpperCase();
+    if (!symbol) return [];
+    const target = this.clampLimit(params.limit);
+    const cmd = new QueryCommand({
+      TableName: this.table,
+      IndexName: "bySymbol",
+      KeyConditionExpression: "gsi1pk = :pk AND begins_with(gsi1sk, :entity)",
+      ExpressionAttributeValues: {
+        ":pk": `SYMBOL#${symbol}`,
+        ":entity": "ENTITY#CATALOG",
+      },
+      ExpressionAttributeNames: ATTRIBUTE_NAMES,
+      ProjectionExpression: PROJECTION,
+      Limit: target,
+    });
+    const out = await this.doc.send(cmd);
+    const items = (out.Items ?? []).map(it =>
+      this.normalize(this.ensureSymbol(it))
+    );
+    return items as unknown as CatalogItem[];
+  }
+
+  /**
    * Query the GSI2 by market/status for catalog entries with fuzzy filter on name/symbol.
    */
   async queryCatalogByMarketFuzzy(params: {
@@ -60,19 +98,14 @@ export class MarketDataRepository {
         ":qu": q.toUpperCase(),
         ":ql": q.toLowerCase(),
       },
-      ExpressionAttributeNames: {
-        "#name": "name",
-        "#symbol": "symbol",
-        "#status": "status",
-      },
+      ExpressionAttributeNames: ATTRIBUTE_NAMES,
       // Some items may not materialize 'symbol'; include pk/gsi1pk for fuzzy code match
       FilterExpression:
         "contains(#name, :q) OR contains(#name, :qu) OR contains(#name, :ql) OR " +
         "contains(#symbol, :q) OR contains(#symbol, :qu) OR contains(#symbol, :ql) OR " +
         "contains(pk, :q) OR contains(pk, :qu) OR contains(pk, :ql) OR " +
         "contains(gsi1pk, :q) OR contains(gsi1pk, :qu) OR contains(gsi1pk, :ql)",
-      ProjectionExpression:
-        "pk, gsi1pk, symbol, #name, exchange, asset_type, market, #status",
+      ProjectionExpression: PROJECTION,
     };
 
     const collected: CatalogItem[] = [];

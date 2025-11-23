@@ -3,6 +3,7 @@
  */
 import { MarketDataRepository, CatalogItem } from "./db/marketdata_repository";
 import { getLogger } from "@src/util/logger";
+import { analyzeSearchInput } from "./search_input";
 
 export interface SearchCatalogInput {
   q: string;
@@ -17,6 +18,8 @@ export interface SearchCatalogOutput {
 }
 
 const DEFAULT_LIMIT = 5;
+const DEFAULT_MARKET_PARTITIONS = ["CN_A", "US", "INDEX", "ETF"];
+const MARKET_QUERY_MAX_PAGES = 10;
 
 export async function searchCatalog(
   input: SearchCatalogInput
@@ -28,8 +31,10 @@ export async function searchCatalog(
 
   const collected: CatalogItem[] = [];
   const seen = new Set<string>();
+  const parsedInput = analyzeSearchInput(q);
 
-  async function add(items: CatalogItem[]) {
+  async function add(items?: CatalogItem[] | null) {
+    if (!Array.isArray(items)) return;
     for (const it of items) {
       if (!it?.symbol) continue;
       const sym = String(it.symbol);
@@ -40,6 +45,16 @@ export async function searchCatalog(
     }
   }
 
+  async function fetchSymbol(candidate: string) {
+    const remaining = limit - collected.length;
+    if (remaining <= 0) return;
+    const part = await repo.queryCatalogBySymbolExact({
+      symbol: candidate,
+      limit: remaining,
+    });
+    await add(part);
+  }
+
   async function fetchPartition(targetMarket: string) {
     const remaining = limit - collected.length;
     if (remaining <= 0) return;
@@ -47,8 +62,31 @@ export async function searchCatalog(
       market: targetMarket,
       q,
       limit: remaining,
+      maxPages: MARKET_QUERY_MAX_PAGES,
     });
     await add(part);
+  }
+
+  if (parsedInput.symbolCandidates.length > 0) {
+    for (const candidate of parsedInput.symbolCandidates) {
+      try {
+        await fetchSymbol(candidate);
+      } catch (err) {
+        logger.warn(
+          { err, symbol: candidate },
+          "queryCatalogBySymbolExact failed for symbol candidate"
+        );
+      }
+      if (collected.length >= limit) break;
+    }
+  }
+
+  if (parsedInput.isSymbolLike && collected.length > 0) {
+    return { count: collected.length, items: collected };
+  }
+
+  if (collected.length >= limit) {
+    return { count: collected.length, items: collected };
   }
 
   if (market) {
@@ -62,8 +100,7 @@ export async function searchCatalog(
       );
     }
   } else {
-    const partitions = ["CN_A", "US", "INDEX", "ETF"];
-    for (const mk of partitions) {
+    for (const mk of DEFAULT_MARKET_PARTITIONS) {
       if (collected.length >= limit) break;
       try {
         await fetchPartition(mk);
