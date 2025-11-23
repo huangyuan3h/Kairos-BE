@@ -17,6 +17,7 @@ const ATTRIBUTE_NAMES = {
   "#name": "name",
   "#symbol": "symbol",
   "#status": "status",
+  "#asset_type": "asset_type",
 };
 
 export interface CatalogItem {
@@ -130,6 +131,62 @@ export class MarketDataRepository {
     }
 
     return collected.slice(0, target);
+  }
+
+  async queryCatalogPage(params: {
+    market: string;
+    limit: number;
+    cursor?: Record<string, unknown>;
+    assetType?: string;
+    q?: string;
+  }): Promise<{ items: CatalogItem[]; cursor?: Record<string, unknown> }> {
+    const target = this.clampLimit(params.limit);
+    const gsi2pk = `MARKET#${params.market}#STATUS#ACTIVE`;
+    const filterParts: string[] = [];
+    const values: Record<string, unknown> = {
+      ":pk": gsi2pk,
+      ":entity": "ENTITY#CATALOG",
+    };
+    const names: Record<string, string> = { ...ATTRIBUTE_NAMES };
+
+    if (params.q) {
+      values[":q"] = params.q;
+      values[":qu"] = params.q.toUpperCase();
+      values[":ql"] = params.q.toLowerCase();
+      filterParts.push(
+        "contains(#name, :q) OR contains(#name, :qu) OR contains(#name, :ql) OR " +
+          "contains(#symbol, :q) OR contains(#symbol, :qu) OR contains(#symbol, :ql) OR " +
+          "contains(pk, :q) OR contains(pk, :qu) OR contains(pk, :ql) OR " +
+          "contains(gsi1pk, :q) OR contains(gsi1pk, :qu) OR contains(gsi1pk, :ql)"
+      );
+    }
+
+    if (params.assetType) {
+      values[":assetType"] = params.assetType;
+      filterParts.push("#asset_type = :assetType");
+    }
+
+    const cmd = new QueryCommand({
+      TableName: this.table,
+      IndexName: "byMarketStatus",
+      KeyConditionExpression: "gsi2pk = :pk AND begins_with(gsi2sk, :entity)",
+      ExpressionAttributeValues: values,
+      ExpressionAttributeNames: names,
+      FilterExpression:
+        filterParts.length > 0 ? filterParts.join(" AND ") : undefined,
+      ProjectionExpression: PROJECTION,
+      Limit: target,
+      ExclusiveStartKey: params.cursor,
+    });
+
+    const out = await this.doc.send(cmd);
+    const items = (out.Items ?? []).map(it =>
+      this.normalize(this.ensureSymbol(it))
+    );
+    return {
+      items: items as unknown as CatalogItem[],
+      cursor: out.LastEvaluatedKey as Record<string, unknown> | undefined,
+    };
   }
 
   /**
