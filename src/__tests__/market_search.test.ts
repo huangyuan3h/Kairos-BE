@@ -34,4 +34,49 @@ describe("searchCatalog business logic", () => {
     expect(out.count).toBe(2);
     expect(out.items.map(i => i.symbol)).toEqual(["SH600000", "SH600001"]);
   });
+
+  test("uses default limit when not provided", async () => {
+    const tableName = "Dummy";
+    mockQuery.mockResolvedValue([]);
+
+    await searchCatalog({
+      q: "dev",
+      tableName,
+    });
+
+    expect(mockQuery).toHaveBeenNthCalledWith(1, {
+      market: "CN_A",
+      q: "dev",
+      limit: 5,
+    });
+  });
+
+  test("passes remaining limit to subsequent partitions", async () => {
+    const tableName = "Dummy";
+    mockQuery
+      .mockResolvedValueOnce([
+        { symbol: "CN1", name: "China One" },
+        { symbol: "CN2", name: "China Two" },
+      ])
+      .mockResolvedValueOnce([{ symbol: "US1", name: "US One" }]);
+
+    const out = await searchCatalog({
+      q: "dev",
+      limit: 3,
+      tableName,
+    });
+
+    expect(out.count).toBe(3);
+    expect(mockQuery).toHaveBeenNthCalledWith(1, {
+      market: "CN_A",
+      q: "dev",
+      limit: 3,
+    });
+    expect(mockQuery).toHaveBeenNthCalledWith(2, {
+      market: "US",
+      q: "dev",
+      limit: 1,
+    });
+    expect(mockQuery).toHaveBeenCalledTimes(2);
+  });
 });

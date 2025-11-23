@@ -7,6 +7,11 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 
+const MIN_LIMIT = 1;
+const MAX_LIMIT = 50;
+const DEFAULT_MAX_QUERY_PAGES = 3;
+const MAX_QUERY_PAGES = 5;
+
 export interface CatalogItem {
   symbol: string;
   name: string;
@@ -38,10 +43,13 @@ export class MarketDataRepository {
     market: string;
     q: string;
     limit: number;
+    maxPages?: number;
   }): Promise<CatalogItem[]> {
-    const { market, q, limit } = params;
+    const { market, q } = params;
+    const target = this.clampLimit(params.limit);
     const gsi2pk = `MARKET#${market}#STATUS#ACTIVE`;
-    const cmd = new QueryCommand({
+    const maxPages = this.clampPages(params.maxPages);
+    const baseInput = {
       TableName: this.table,
       IndexName: "byMarketStatus",
       KeyConditionExpression: "gsi2pk = :pk AND begins_with(gsi2sk, :entity)",
@@ -65,13 +73,30 @@ export class MarketDataRepository {
         "contains(gsi1pk, :q) OR contains(gsi1pk, :qu) OR contains(gsi1pk, :ql)",
       ProjectionExpression:
         "pk, gsi1pk, symbol, #name, exchange, asset_type, market, #status",
-      Limit: limit,
-    });
-    const out = await this.doc.send(cmd);
-    const items = (out.Items ?? []).map(it =>
-      this.normalize(this.ensureSymbol(it))
-    );
-    return items as unknown as CatalogItem[];
+    };
+
+    const collected: CatalogItem[] = [];
+    let cursor: Record<string, unknown> | undefined;
+    let pages = 0;
+
+    while (collected.length < target && pages < maxPages) {
+      const remaining = target - collected.length;
+      const cmd = new QueryCommand({
+        ...baseInput,
+        Limit: Math.max(remaining, MIN_LIMIT),
+        ExclusiveStartKey: cursor,
+      });
+      const out = await this.doc.send(cmd);
+      const items = (out.Items ?? []).map(it =>
+        this.normalize(this.ensureSymbol(it))
+      );
+      collected.push(...(items as unknown as CatalogItem[]));
+      cursor = out.LastEvaluatedKey as Record<string, unknown> | undefined;
+      pages += 1;
+      if (!cursor) break;
+    }
+
+    return collected.slice(0, target);
   }
 
   /**
@@ -93,6 +118,16 @@ export class MarketDataRepository {
     if (!s) return undefined;
     const pos = s.indexOf("#");
     return pos >= 0 && pos + 1 < s.length ? s.slice(pos + 1) : undefined;
+  }
+
+  private clampLimit(value: number): number {
+    if (!Number.isFinite(value)) return MIN_LIMIT;
+    return Math.min(Math.max(Math.trunc(value), MIN_LIMIT), MAX_LIMIT);
+  }
+
+  private clampPages(value?: number): number {
+    if (!Number.isFinite(value ?? NaN)) return DEFAULT_MAX_QUERY_PAGES;
+    return Math.min(Math.max(Math.trunc(value as number), 1), MAX_QUERY_PAGES);
   }
 
   /**
