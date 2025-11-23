@@ -11,6 +11,7 @@ const MIN_LIMIT = 1;
 const MAX_LIMIT = 50;
 const DEFAULT_MAX_QUERY_PAGES = 3;
 const MAX_QUERY_PAGES = 5;
+const DEFAULT_STATUS = "active";
 const PROJECTION =
   "pk, gsi1pk, symbol, #name, exchange, asset_type, market, #status";
 const ATTRIBUTE_NAMES = {
@@ -83,10 +84,11 @@ export class MarketDataRepository {
     q: string;
     limit: number;
     maxPages?: number;
+    status?: string;
   }): Promise<CatalogItem[]> {
     const { market, q } = params;
     const target = this.clampLimit(params.limit);
-    const gsi2pk = `MARKET#${market}#STATUS#ACTIVE`;
+    const gsi2pk = this.buildMarketStatusPk(market, params.status);
     const maxPages = this.clampPages(params.maxPages);
     const baseInput = {
       TableName: this.table,
@@ -139,9 +141,10 @@ export class MarketDataRepository {
     cursor?: Record<string, unknown>;
     assetType?: string;
     q?: string;
+    status?: string;
   }): Promise<{ items: CatalogItem[]; cursor?: Record<string, unknown> }> {
     const target = this.clampLimit(params.limit);
-    const gsi2pk = `MARKET#${params.market}#STATUS#ACTIVE`;
+    const gsi2pk = this.buildMarketStatusPk(params.market, params.status);
     const filterParts: string[] = [];
     const values: Record<string, unknown> = {
       ":pk": gsi2pk,
@@ -223,6 +226,12 @@ export class MarketDataRepository {
   private clampPages(value?: number): number {
     if (!Number.isFinite(value ?? NaN)) return DEFAULT_MAX_QUERY_PAGES;
     return Math.min(Math.max(Math.trunc(value as number), 1), MAX_QUERY_PAGES);
+  }
+
+  private buildMarketStatusPk(market: string, status?: string): string {
+    const normalizedStatus =
+      (status ?? DEFAULT_STATUS)?.toLowerCase() || DEFAULT_STATUS;
+    return `MARKET#${market}#STATUS#${normalizedStatus}`;
   }
 
   /**
