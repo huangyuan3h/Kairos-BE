@@ -88,6 +88,7 @@ export async function listCatalog(
     if (!Array.isArray(items)) return;
     for (const item of items) {
       if (!item?.symbol) continue;
+      if (!passesFilters(item, input)) continue;
       const sym = String(item.symbol);
       if (seen.has(sym)) continue;
       seen.add(sym);
@@ -163,7 +164,7 @@ async function fetchQuote(
   indexRepo: QuoteRepository
 ): Promise<Omit<CatalogListItem, keyof CatalogItem>> {
   const targetRepo =
-    normalizeAssetType(item.asset_type) === "index" ? indexRepo : stockRepo;
+    resolveQuoteRepo(item.asset_type) === "index" ? indexRepo : stockRepo;
   try {
     const points = await targetRepo.queryLatestBySymbol({
       code: String(item.symbol),
@@ -235,10 +236,10 @@ function emptyQuote(): Omit<CatalogListItem, keyof CatalogItem> {
   };
 }
 
-function normalizeAssetType(value?: string): "index" | "stock" {
+function resolveQuoteRepo(value?: string): "index" | "stock" {
   if (!value) return "stock";
   const norm = value.toLowerCase();
-  if (norm === "index") return "index";
+  if (norm === "index" || norm === "etf") return "index";
   return "stock";
 }
 
@@ -259,4 +260,18 @@ function pickNumber(value: unknown): number | null {
 function roundTo(value: number, precision: number): number {
   const factor = Math.pow(10, precision);
   return Math.round(value * factor) / factor;
+}
+
+function passesFilters(item: CatalogItem, input: ListCatalogInput): boolean {
+  if (input.market && item.market && item.market !== input.market) {
+    return false;
+  }
+  if (input.assetType) {
+    const desired = input.assetType.toLowerCase();
+    const actual = (item.asset_type ?? "").toLowerCase();
+    if (!actual || actual !== desired) {
+      return false;
+    }
+  }
+  return true;
 }

@@ -22,7 +22,12 @@ describe("listCatalog", () => {
   test("returns symbol search results when query looks like code", async () => {
     const catalogRepo = mockCatalogRepo();
     catalogRepo.queryCatalogBySymbolExact.mockResolvedValue([
-      { symbol: "SH600988", name: "China Railway", asset_type: "stock" },
+      {
+        symbol: "SH600988",
+        name: "China Railway",
+        asset_type: "stock",
+        market: "CN_A",
+      },
     ]);
     const stockRepo = mockQuoteRepo();
     stockRepo.queryLatestBySymbol.mockResolvedValue([
@@ -78,5 +83,66 @@ describe("listCatalog", () => {
     expect(catalogRepo.queryCatalogPage).toHaveBeenCalledWith(
       expect.objectContaining({ market: "CN_A", limit: 10 })
     );
+  });
+
+  test("ignores symbol results from other markets and falls back", async () => {
+    const catalogRepo = mockCatalogRepo();
+    catalogRepo.queryCatalogBySymbolExact.mockResolvedValue([
+      {
+        symbol: "US900",
+        name: "US Stock",
+        market: "US",
+        asset_type: "stock",
+      },
+    ]);
+    catalogRepo.queryCatalogPage.mockResolvedValue({
+      items: [
+        {
+          symbol: "CN2",
+          name: "China Two",
+          asset_type: "stock",
+          market: "CN_A",
+        },
+      ],
+    });
+    const stockRepo = mockQuoteRepo();
+    stockRepo.queryLatestBySymbol.mockResolvedValue([
+      { close: 3, date: "2024-11-05" },
+    ]);
+
+    const out = await listCatalog(
+      { ...baseInput, q: "US900" },
+      { catalogRepository: catalogRepo, stockRepository: stockRepo }
+    );
+    expect(out.items[0].symbol).toBe("CN2");
+    expect(catalogRepo.queryCatalogPage).toHaveBeenCalled();
+  });
+
+  test("routes ETF asset type to index repository", async () => {
+    const catalogRepo = mockCatalogRepo();
+    catalogRepo.queryCatalogBySymbolExact.mockResolvedValue([]);
+    catalogRepo.queryCatalogPage.mockResolvedValue({
+      items: [
+        {
+          symbol: "ETF1",
+          name: "ETF",
+          asset_type: "etf",
+          market: "US",
+        },
+      ],
+    });
+    const indexRepo = mockQuoteRepo();
+    indexRepo.queryLatestBySymbol.mockResolvedValue([{ close: 100 }]);
+
+    const out = await listCatalog(
+      { ...baseInput, market: "US" },
+      { catalogRepository: catalogRepo, indexRepository: indexRepo }
+    );
+
+    expect(indexRepo.queryLatestBySymbol).toHaveBeenCalledWith({
+      code: "ETF1",
+      limit: 2,
+    });
+    expect(out.items[0].last).toBe(100);
   });
 });

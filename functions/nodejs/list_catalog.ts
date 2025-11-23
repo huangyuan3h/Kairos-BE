@@ -11,7 +11,11 @@ export const handler = async (event: ApiEvent) => {
     const assetType = qs.assetType ? String(qs.assetType).trim() : undefined;
     const q = qs.q ? String(qs.q).trim() : undefined;
     const limit = qs.limit ? Number(qs.limit) : undefined;
-    const cursor = qs.cursor ? decodeCursor(qs.cursor) : undefined;
+    const cursorResult = qs.cursor ? decodeCursor(qs.cursor) : undefined;
+    if (cursorResult?.error) {
+      return response(400, { error: "cursor is invalid" });
+    }
+    const cursor = cursorResult?.cursor;
 
     if (!market) {
       return response(400, { error: "market is required" });
@@ -45,13 +49,17 @@ export const handler = async (event: ApiEvent) => {
   }
 };
 
-function decodeCursor(value: string): CatalogCursor | undefined {
+function decodeCursor(
+  value: string
+): { cursor?: CatalogCursor; error?: boolean } | undefined {
   try {
     const json = Buffer.from(value, "base64").toString("utf8");
     const obj = JSON.parse(json);
-    return typeof obj === "object" && obj ? obj : undefined;
+    return typeof obj === "object" && obj
+      ? { cursor: obj as CatalogCursor }
+      : { error: true };
   } catch {
-    return undefined;
+    return { error: true };
   }
 }
 
