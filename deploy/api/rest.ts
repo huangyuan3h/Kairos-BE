@@ -75,6 +75,27 @@ export function createRestApi(
     });
   }
 
+  if (
+    database.marketDataTable &&
+    database.stockDataTable &&
+    database.indexDataTable
+  ) {
+    api.route("GET /catalog/list", {
+      handler: "functions/nodejs/list_catalog.handler",
+      runtime: "nodejs20.x",
+      link: [
+        database.marketDataTable,
+        database.stockDataTable,
+        database.indexDataTable,
+      ],
+      environment: {
+        MARKET_DATA_TABLE: database.marketDataTable.name,
+        STOCK_DATA_TABLE: database.stockDataTable.name,
+        INDEX_DATA_TABLE: database.indexDataTable.name,
+      },
+    });
+  }
+
   // Time series query for a code within a date window (default last 120 days)
   // Query params:
   // - code: string (required)
