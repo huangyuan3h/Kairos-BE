@@ -26,7 +26,7 @@ export function createOverallReportCron(params: {
         AI_MAX_ATTEMPTS: "8",
         AI_BASE_DELAY_MS: "3000",
         AI_MODEL_FALLBACKS:
-          "gemini-2.5-flash,gemini-2.5-flash-lite,gemma-3-27b-it",
+          "gemini-2.5-flash",
       },
     },
   });
