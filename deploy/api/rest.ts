@@ -10,15 +10,7 @@ export function createRestApi(
   database: { reportsTable: any; marketDataTable?: any; indexDataTable?: any; stockDataTable?: any; companyTable?: any },
   options?: { isProduction?: boolean; stage?: string }
 ) {
-  // Pre-provision a DNS validated certificate so the prod API never falls back to the default execute-api cert.
   const prodDnsAdapter = options?.isProduction ? sst.cloudflare.dns() : undefined;
-  const prodApiCertificate =
-    options?.isProduction && prodDnsAdapter
-      ? new sst.aws.Certificate("ProdApiCertificate", {
-          domainName: "api.kairos-2.it-t.xyz",
-          dns: prodDnsAdapter,
-        })
-      : undefined;
 
   // Main REST API gateway
   const api = new sst.aws.ApiGatewayV2("MainApi", {
@@ -43,9 +35,9 @@ export function createRestApi(
     },
     domain: options?.isProduction
       ? {
+          // ApiGatewayV2 automatically provisions an ACM certificate when a DNS adapter is provided.
           name: "api.kairos-2.it-t.xyz",
           dns: prodDnsAdapter,
-          cert: prodApiCertificate?.arn,
         }
       : undefined,
   });
