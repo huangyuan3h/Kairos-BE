@@ -53,6 +53,23 @@ describe("MarketDataRepository", () => {
     expect(items[0]?.symbol).toBe("CN1");
   });
 
+  test("queryCatalogByMarketFuzzy clamps max pages to configured maximum", async () => {
+    mockSend.mockImplementation(() => ({
+      Items: [],
+      LastEvaluatedKey: { pk: "STOCK#MORE", sk: "META#CATALOG" },
+    }));
+
+    const repo = createRepo();
+    await repo.queryCatalogByMarketFuzzy({
+      market: "US",
+      q: "alpha",
+      limit: 1,
+      maxPages: 999,
+    });
+
+    expect(mockSend).toHaveBeenCalledTimes(20);
+  });
+
   test("queryCatalogPage returns cursor and respects optional filters", async () => {
     mockSend.mockResolvedValueOnce({
       Items: [{ symbol: "US1", name: "US Stock" }],
