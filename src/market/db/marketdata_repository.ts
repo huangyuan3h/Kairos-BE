@@ -9,8 +9,8 @@ import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 
 const MIN_LIMIT = 1;
 const MAX_LIMIT = 50;
-const DEFAULT_MAX_QUERY_PAGES = 3;
-const MAX_QUERY_PAGES = 5;
+const DEFAULT_MAX_QUERY_PAGES = 10;
+const MAX_QUERY_PAGES = 20;
 const DEFAULT_STATUS = "active";
 const PROJECTION =
   "pk, gsi1pk, symbol, #name, exchange, asset_type, market, #status";
