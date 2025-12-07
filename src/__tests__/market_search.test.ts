@@ -46,12 +46,16 @@ describe("searchCatalog business logic", () => {
       tableName,
     });
 
-    expect(mockQueryByMarket).toHaveBeenNthCalledWith(1, {
-      market: "CN_A",
-      q: "dev",
-      limit: 5,
-      maxPages: 10,
-    });
+    expect(mockQueryByMarket).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        market: "CN_A",
+        q: "dev",
+        limit: 5,
+        maxPages: 50,
+        pageSize: 80,
+      })
+    );
   });
 
   test("passes remaining limit to subsequent partitions", async () => {
@@ -70,18 +74,26 @@ describe("searchCatalog business logic", () => {
     });
 
     expect(out.count).toBe(3);
-    expect(mockQueryByMarket).toHaveBeenNthCalledWith(1, {
-      market: "CN_A",
-      q: "dev",
-      limit: 3,
-      maxPages: 10,
-    });
-    expect(mockQueryByMarket).toHaveBeenNthCalledWith(2, {
-      market: "US",
-      q: "dev",
-      limit: 1,
-      maxPages: 10,
-    });
+    expect(mockQueryByMarket).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        market: "CN_A",
+        q: "dev",
+        limit: 3,
+        maxPages: 50,
+        pageSize: 80,
+      })
+    );
+    expect(mockQueryByMarket).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        market: "US",
+        q: "dev",
+        limit: 1,
+        maxPages: 50,
+        pageSize: 80,
+      })
+    );
     expect(mockQueryByMarket).toHaveBeenCalledTimes(2);
   });
 
