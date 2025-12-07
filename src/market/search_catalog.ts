@@ -19,7 +19,8 @@ export interface SearchCatalogOutput {
 
 const DEFAULT_LIMIT = 5;
 const DEFAULT_MARKET_PARTITIONS = ["CN_A", "US", "INDEX", "ETF"];
-const MARKET_QUERY_MAX_PAGES = 10;
+const MARKET_QUERY_MAX_PAGES = 50;
+const MARKET_QUERY_PAGE_SIZE = 80;
 
 export async function searchCatalog(
   input: SearchCatalogInput
@@ -63,6 +64,7 @@ export async function searchCatalog(
       q,
       limit: remaining,
       maxPages: MARKET_QUERY_MAX_PAGES,
+      pageSize: Math.max(MARKET_QUERY_PAGE_SIZE, remaining * 5),
     });
     await add(part);
   }

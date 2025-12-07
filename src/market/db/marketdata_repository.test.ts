@@ -70,6 +70,39 @@ describe("MarketDataRepository", () => {
     expect(mockSend).toHaveBeenCalledTimes(20);
   });
 
+  test("queryCatalogByMarketFuzzy uses wider page size than requested limit", async () => {
+    mockSend.mockResolvedValueOnce({
+      Items: [{ symbol: "CN1", name: "China One" }],
+    });
+
+    const repo = createRepo();
+    await repo.queryCatalogByMarketFuzzy({
+      market: "CN_A",
+      q: "c",
+      limit: 2,
+    });
+
+    const sent = mockSend.mock.calls[0]?.[0] as { input: Record<string, any> };
+    expect(sent.input.Limit).toBeGreaterThan(2);
+  });
+
+  test("queryCatalogByMarketFuzzy respects explicit pageSize", async () => {
+    mockSend.mockResolvedValueOnce({
+      Items: [{ symbol: "US1", name: "US Stock" }],
+    });
+
+    const repo = createRepo();
+    await repo.queryCatalogByMarketFuzzy({
+      market: "US",
+      q: "us",
+      limit: 5,
+      pageSize: 150,
+    });
+
+    const sent = mockSend.mock.calls[0]?.[0] as { input: Record<string, any> };
+    expect(sent.input.Limit).toBe(150);
+  });
+
   test("queryCatalogPage returns cursor and respects optional filters", async () => {
     mockSend.mockResolvedValueOnce({
       Items: [{ symbol: "US1", name: "US Stock" }],

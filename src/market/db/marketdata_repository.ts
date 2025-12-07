@@ -10,7 +10,9 @@ import { DynamoDBDocumentClient, QueryCommand } from "@aws-sdk/lib-dynamodb";
 const MIN_LIMIT = 1;
 const MAX_LIMIT = 50;
 const DEFAULT_MAX_QUERY_PAGES = 10;
-const MAX_QUERY_PAGES = 20;
+const MAX_QUERY_PAGES = 200;
+const MIN_QUERY_PAGE_SIZE = 10;
+const MAX_QUERY_PAGE_SIZE = 200;
 const DEFAULT_STATUS = "active";
 const PROJECTION =
   "pk, gsi1pk, symbol, #name, exchange, asset_type, market, #status";
@@ -85,11 +87,15 @@ export class MarketDataRepository {
     limit: number;
     maxPages?: number;
     status?: string;
+    pageSize?: number;
   }): Promise<CatalogItem[]> {
     const { market, q } = params;
     const target = this.clampLimit(params.limit);
     const gsi2pk = this.buildMarketStatusPk(market, params.status);
     const maxPages = this.clampPages(params.maxPages);
+    const pageSize = this.clampPageSize(
+      params.pageSize ?? Math.max(target * 5, MIN_QUERY_PAGE_SIZE)
+    );
     const baseInput = {
       TableName: this.table,
       IndexName: "byMarketStatus",
@@ -119,7 +125,7 @@ export class MarketDataRepository {
       const remaining = target - collected.length;
       const cmd = new QueryCommand({
         ...baseInput,
-        Limit: Math.max(remaining, MIN_LIMIT),
+        Limit: Math.max(pageSize, remaining, MIN_LIMIT),
         ExclusiveStartKey: cursor,
       });
       const out = await this.doc.send(cmd);
@@ -226,6 +232,14 @@ export class MarketDataRepository {
   private clampPages(value?: number): number {
     if (!Number.isFinite(value ?? NaN)) return DEFAULT_MAX_QUERY_PAGES;
     return Math.min(Math.max(Math.trunc(value as number), 1), MAX_QUERY_PAGES);
+  }
+
+  private clampPageSize(value?: number): number {
+    if (!Number.isFinite(value ?? NaN)) return MIN_QUERY_PAGE_SIZE;
+    return Math.min(
+      Math.max(Math.trunc(value as number), MIN_QUERY_PAGE_SIZE),
+      MAX_QUERY_PAGE_SIZE
+    );
   }
 
   private buildMarketStatusPk(market: string, status?: string): string {
